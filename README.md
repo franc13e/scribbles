@@ -30,7 +30,7 @@ A tiny, doodly list app for groceries, wishlists, to-dos and anything else. It's
 - **Setup steps:** your name, the list's name and its type, then "you're ready".
 - **Hand-drawn feel:** wobbly ink doodles with gentle idle animations, handwritten fonts (Gochi Hand and Patrick Hand), and cards taped on like paper scraps.
 - **A mochi mascot:** it blinks and sways, hops when you add something, and says something nice when you tap it.
-- **Repeating items:** tap the loop icon to repeat an item every day, week, 2 weeks or month, or only on certain days (like Mon · Thu). It unticks itself when it's due again. Wishlists don't repeat.
+- **Repeating items:** tap the loop icon to repeat an item every day, week, 2 weeks or month, or only on certain days (like Mon · Thu). It unticks itself when it's due again. Only to-do and "anything" lists repeat.
 - **Cute sounds:** a paper-scratch when you tick something off, pops, a boing when you poke the mochi and a little chime when a list is done. All made in the browser, and you can mute them from the home screen.
 - **An easter egg:** try typing a certain song name 🎵
 - **Satisfying tick-offs:** a crayon scribble crosses each item out, with small sparkles. Finishing a list gets a bigger burst and a note from the mascot.

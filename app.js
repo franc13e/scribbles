@@ -483,7 +483,7 @@
                 <li class="item ${i.done ? 'done' : ''} ${i.id === justAdded ? 'new' : ''} ${i.id === justToggled ? 'just' : ''}" data-item="${i.id}">
                   <button class="check" data-action="toggle" aria-label="${i.done ? 'Untick' : 'Tick'} ${esc(i.text)}">${CHECK}</button>
                   <button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}${repeatTag(l, i)}</button>
-                  ${k.id === 'wish' ? '' : `<button class="icon-btn rep ${repeats(l, i) ? 'on' : ''}" data-action="repeat" title="Repeat" aria-label="Repeat ${esc(i.text)}: ${repeats(l, i) ? repeatLabel(i) : 'off'}">${LOOP}</button>`}
+                  ${!canRepeat(l) ? '' : `<button class="icon-btn rep ${repeats(l, i) ? 'on' : ''}" data-action="repeat" title="Repeat" aria-label="Repeat ${esc(i.text)}: ${repeats(l, i) ? repeatLabel(i) : 'off'}">${LOOP}</button>`}
                   <button class="icon-btn" data-action="del-item" aria-label="Delete ${esc(i.text)}">×</button>
                 </li>`).join('')}
             </ul>
@@ -532,7 +532,7 @@
 
   // ---------- repeating items ----------
   // item.repeat: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'days' (item.days = weekdays, Sun = 0)
-  // a ticked repeating item unticks itself when it's next due; wishlists never repeat
+  // a ticked repeating item unticks itself when it's next due; wishlists and grocery lists never repeat
 
   const DAY = 864e5;
   const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -545,7 +545,8 @@
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() + add).getTime();
   };
 
-  const repeats = (l, i) => l.kind !== 'wish' && !!i.repeat && (i.repeat !== 'days' || !!(i.days && i.days.length));
+  const canRepeat = l => l.kind !== 'wish' && l.kind !== 'grocery';
+  const repeats = (l, i) => canRepeat(l) && !!i.repeat && (i.repeat !== 'days' || !!(i.days && i.days.length));
 
   const findItem = (l, id) => {
     for (const s of l.sections) {
