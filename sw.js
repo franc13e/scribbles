@@ -1,7 +1,7 @@
 // Keeps the app working offline: serve from cache straight away, refresh the cache in the background.
-const CACHE = 'scribble-v1';
+const CACHE = 'scribble-v2';
 const SHELL = [
-  '/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest',
+  '/', '/index.html', '/style.css', '/recap.js', '/app.js', '/manifest.webmanifest',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png',
 ];
 

@@ -273,7 +273,7 @@
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.lists)) return s;
     } catch (e) { /* fall through */ }
-    return { seen: false, user: '', lists: [] };
+    return { seen: false, user: '', lists: [], log: {}, months: {} };
   }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
@@ -292,6 +292,13 @@
   let sheet = null;           // item id whose repeat sheet is open
   let sheetFresh = false;     // slide the sheet in only when it first opens
   let leroArmed = true;       // easter egg fires once per time it's typed
+  let msel = null;            // month page: selected photo / sticker / text id
+  let msheet = null;          // month page sheet: 'day' | 'tray' | 'text' | 'export'
+  let mday = null;            // day number the day sheet is open for
+  let mtab = 'doodles';       // sticker tray tab
+  let mtext = null;           // words being written: { id?, t, shape }
+  let mexp = null;            // export options and the finished file: { fmt, ticks, dots, preview, blob }
+  let gest = null;            // drag / pinch in progress on the month page
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -444,7 +451,10 @@
           </div>` : ''}
         ${body}
         <div class="spacer"></div>
-        <div class="dock"><button class="pill wide" data-action="new">New list</button></div>
+        <div class="dock dock-row">
+          <a class="pill ghost" href="#/month">${CAL}month</a>
+          <button class="pill grow" data-action="new">New list</button>
+        </div>
       </section>`;
   }
 
@@ -603,12 +613,358 @@
     ? `<span class="rep-tag">${i.done ? backLabel(i) : repeatLabel(i)}</span>`
     : '';
 
+  // ---------- monthly recap ----------
+  // state.log['2026-11-12'] = [{ i: item id, t: text, l: list name }], filled in as things get ticked
+  // state.months['2026-11'] = { notes: { 12: 'yoga' }, hl: 'highlights', els: [...] }
+  // an element is { id, type: 'photo' | 'sticker' | 'text', x, y (its centre), r (degrees), and
+  //   photo: p (photo id), a (height / width), w, frame · sticker: k (sticker id), w · text: t, shape, s (font size) }
+  // positions and sizes are in board units: 1% of the board's width (see recap.js)
+
+  const R = window.Recap;
+  const icon24 = body => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const pad2 = n => String(n).padStart(2, '0');
+  const ymd = t => {
+    const d = new Date(t);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  };
+  const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const FRAMES = ['polaroid', 'taped', 'round', 'plain'];
+  const TABS = [['doodles', 'doodles'], ['scribbles', 'scribbles'], ['stamps', 'stamps'], ['tape', 'tape & arrows']];
+  const coarse = matchMedia('(pointer: coarse)').matches;
+
+  function logTick(l, i) {
+    const day = state.log[ymd(i.doneAt)] || (state.log[ymd(i.doneAt)] = []);
+    if (!day.some(x => x.i === i.id)) day.push({ i: i.id, t: i.text, l: l.name });
+  }
+  function unlogTick(i, at) {
+    const k = at && ymd(at);
+    if (!k || !state.log[k]) return;
+    state.log[k] = state.log[k].filter(x => x.i !== i.id);
+    if (!state.log[k].length) delete state.log[k];
+  }
+
+  const viewKey = () => {
+    const m = route().match(/^\/month\/(\d{4}-\d{2})$/);
+    return m ? m[1] : ymd(Date.now()).slice(0, 7);
+  };
+  const monthOf = (key, make) => state.months[key] ||
+    (make ? (state.months[key] = { notes: {}, hl: '', els: [] }) : { notes: {}, hl: '', els: [] });
+  const monthName = (Y, M, month = 'long') => new Date(Y, M - 1, 1).toLocaleString('en', { month }).toLowerCase();
+
+  function grid(key) {
+    const [Y, M] = key.split('-').map(Number);
+    const off = (new Date(Y, M - 1, 1).getDay() + 6) % 7; // Monday first
+    const rows = Math.ceil((off + new Date(Y, M, 0).getDate()) / 7);
+    const cells = [];
+    for (let i = 0; i < rows * 7; i++) {
+      const d = new Date(Y, M - 1, 1 - off + i);
+      cells.push({ n: d.getDate(), out: d.getMonth() !== M - 1, key: ymd(d) });
+    }
+    return { Y, M, off, rows, cells };
+  }
+
+  function monthStats(key) {
+    let ticked = 0, days = 0;
+    Object.keys(state.log).forEach(k => {
+      if (k.startsWith(key + '-')) { ticked += state.log[k].length; days++; }
+    });
+    return { ticked, days };
+  }
+
+  const showTicks = () => state.showTicks !== false;
+  const elSize = e => e.type === 'text' ? e.s : e.w;
+  const setSize = (e, v) => {
+    if (e.type === 'text') e.s = Math.min(22, Math.max(2.5, v));
+    else e.w = Math.min(95, Math.max(5, v));
+  };
+
+  const CAL = icon24('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16 M9 3v4 M15 3v4"/>');
+  const SMALL_TICK = icon24('<path d="M5 12.5l4.5 4.5L19 7"/>');
+  const ADD_ICONS = {
+    photo: icon24('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 16l5-5 4 4 3-3 6 5"/><circle cx="16" cy="9" r="1.5"/>'),
+    sticker: icon24('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),
+    text: icon24('<path d="M5 6h14 M12 6v13"/>'),
+  };
+
+  function elHtml(e) {
+    const sel = e.id === msel;
+    let cls = '', size = '', inner = '';
+    if (e.type === 'photo') {
+      const src = R.photos.cached(e.p);
+      cls = 'fr-' + e.frame;
+      size = `--w:${e.w}cqw;`;
+      inner = `<img data-photo="${esc(e.p)}" ${src ? `src="${src}"` : ''} alt="" draggable="false" style="aspect-ratio:${e.frame === 'round' ? 1 : (1 / e.a).toFixed(4)}">`;
+    } else if (e.type === 'sticker') {
+      const s = R.stickerById(e.k);
+      size = `--w:${e.w}cqw;`;
+      inner = s ? R.stickerSvg(s, 'aria-hidden="true"') : '';
+    } else {
+      cls = 'sh-' + e.shape;
+      size = `font-size:${e.s}cqw;`;
+      inner = esc(e.t);
+    }
+    const handles = sel ? `<button class="h h-del" data-action="m-del" aria-label="Remove">×</button>
+      <span class="h h-size" data-handle="size"></span><span class="h h-rot" data-handle="rot"></span>` : '';
+    return `<div class="el el-${e.type} ${cls} ${sel ? 'sel' : ''}" data-el="${e.id}"
+      style="left:${e.x}cqw;top:${e.y}cqw;--r:${e.r || 0}deg;${size}">${inner}${handles}</div>`;
+  }
+
+  function monthView(key) {
+    const m = monthOf(key);
+    const g = grid(key);
+    const name = monthName(g.Y, g.M);
+    const prev = new Date(g.Y, g.M - 2, 1), next = new Date(g.Y, g.M, 1);
+    const today = ymd(Date.now());
+    const { ticked, days } = monthStats(key);
+    const sel = m.els.find(e => e.id === msel);
+
+    const cells = g.cells.map(c => {
+      if (c.out) return `<div class="cell out"><span class="num">${c.n}</span></div>`;
+      const ticks = (state.log[c.key] || []).length;
+      const note = m.notes[c.n];
+      return `<button class="cell ${c.key === today ? 'today' : ''}" data-action="m-day" data-day="${c.n}" aria-label="${c.n} ${name}${note ? ': ' + esc(note) : ''}">
+        <span class="num">${c.n}</span>${note ? `<span class="cnote">${esc(note)}</span>` : ''}
+        ${ticks && showTicks() ? `<i class="ctick">✓ ${ticks}</i>` : ''}</button>`;
+    }).join('');
+
+    let dock;
+    if (sel) {
+      dock = `<div class="m-tools">
+        ${sel.type === 'photo' ? FRAMES.map(f => `<button class="chip ${sel.frame === f ? 'on' : ''}" data-action="m-frame" data-frame="${f}">${f}</button>`).join('') : ''}
+        ${sel.type === 'text' ? '<button class="chip" data-action="m-edit-text">edit words</button>' : ''}
+        <button class="chip" data-action="m-front">to front</button>
+        <button class="chip" data-action="m-del">remove</button>
+      </div>`;
+    } else {
+      dock = ['photo', 'sticker', 'text'].map(a =>
+        `<button class="pill ghost" data-action="m-${a === 'sticker' ? 'tray' : a === 'text' ? 'words' : 'photo'}">${ADD_ICONS[a]}${a}</button>`).join('');
+    }
+
+    return `
+      <section class="screen month">
+        <div class="m-top">
+          <a class="m-btn" href="#/">lists</a>
+          <div class="m-title">
+            <h1>${name}</h1>
+            <div class="m-nav">
+              <button data-action="m-go" data-key="${ymd(prev).slice(0, 7)}">${monthName(prev.getFullYear(), prev.getMonth() + 1, 'short')}</button>
+              · ${g.Y} ·
+              <button data-action="m-go" data-key="${ymd(next).slice(0, 7)}">${monthName(next.getFullYear(), next.getMonth() + 1, 'short')}</button>
+            </div>
+          </div>
+          ${sel ? '<button class="m-btn dark" data-action="m-deselect">done</button>'
+            : '<button class="m-btn dark" data-action="m-export">save</button>'}
+        </div>
+
+        <div class="m-card">
+          <div class="m-hl">
+            <h3>this month</h3>
+            <textarea data-field="m-hl" rows="3" maxlength="200" aria-label="This month's highlights" placeholder="a few highlights…">${esc(m.hl)}</textarea>
+          </div>
+          <div class="m-stats">
+            <span><b>${ticked}</b> ticked</span>
+            <span><b>${days}</b> busy ${days === 1 ? 'day' : 'days'}</span>
+            <small>from your lists</small>
+          </div>
+        </div>
+
+        <div class="board">
+          <div class="wk">${WEEKDAYS.map(d => `<span>${d}</span>`).join('')}</div>
+          <div class="cal">${cells}</div>
+          <div class="layer">${m.els.map(elHtml).join('')}</div>
+        </div>
+        <p class="m-legend"><span>${sel ? 'drag · pinch · twist' : 'tap a day to write'}</span>
+          ${showTicks() ? '<span><i>✓ 3</i> = ticked that day</span>' : ''}</p>
+
+        <div class="spacer"></div>
+        <div class="dock m-dock">${dock}</div>
+      </section>
+      ${msheet ? monthSheet(key, m, g) : ''}`;
+  }
+
+  function monthSheet(key, m, g) {
+    const wrapSheet = (label, body) => `
+      <div class="sheet-wrap ${sheetFresh ? 'fresh' : ''}">
+        <div class="sheet-backdrop" data-action="m-close"></div>
+        <div class="sheet m-sheet" role="dialog" aria-label="${label}">${body}</div>
+      </div>`;
+
+    if (msheet === 'day') {
+      const d = new Date(g.Y, g.M - 1, mday);
+      const ticks = state.log[ymd(d)] || [];
+      const title = `${d.toLocaleString('en', { weekday: 'short' }).toLowerCase()}, ${mday} ${monthName(g.Y, g.M, 'short')}`;
+      return wrapSheet(title, `
+        <div class="m-sheet-head"><h3>${title}</h3><span>${ticks.length ? `${ticks.length} ticked` : ''}</span></div>
+        <label class="sheet-label" for="m-note">a little note</label>
+        <input id="m-note" class="field m-note" data-field="m-note" maxlength="40" autocomplete="off" value="${esc(m.notes[mday] || '')}">
+        <p class="sheet-label">ticked off this day</p>
+        ${ticks.length
+          ? `<ul class="m-ticks">${ticks.map(x => `<li>${SMALL_TICK}<span>${esc(x.t)}${sticker(x.t)}</span><i>${esc(x.l)}</i></li>`).join('')}</ul>`
+          : '<p class="m-empty">nothing ticked this day</p>'}
+        <div class="m-row">
+          <span>show ticks on the calendar</span>
+          <button class="switch ${showTicks() ? 'on' : ''}" role="switch" aria-checked="${showTicks()}" aria-label="Show ticks on the calendar" data-action="m-ticks"></button>
+        </div>
+        <div class="m-btns">
+          <button class="pill ghost" data-action="m-photo">add photo</button>
+          <button class="pill" data-action="m-close">done</button>
+        </div>`);
+    }
+
+    if (msheet === 'tray') {
+      const items = mtab === 'stamps'
+        ? R.STAMPS.map(([t, shape], i) => `<button class="tray-btn" data-action="m-add-stamp" data-i="${i}"><span class="tray-stamp sh-${shape}">${esc(t)}</span></button>`)
+        : R.STICKERS.filter(s => s.tab === mtab).map(s => `<button class="tray-btn" data-action="m-add-stk" data-k="${s.id}" aria-label="${s.id.replace('-', ' ')}">${R.stickerSvg(s, 'aria-hidden="true"')}</button>`);
+      return wrapSheet('Stickers', `
+        <div class="m-tabs">${TABS.map(([id, label]) => `<button class="chip ${mtab === id ? 'on' : ''}" data-action="m-tab" data-tab="${id}">${label}</button>`).join('')}</div>
+        <div class="tray ${mtab === 'stamps' ? 'stamps' : ''}">${items.join('')}</div>`);
+    }
+
+    if (msheet === 'text') {
+      return wrapSheet('Words', `
+        <h3>${mtext.id ? 'edit words' : 'add words'}</h3>
+        <textarea class="field m-words" data-field="m-text" rows="2" maxlength="60" aria-label="Words">${esc(mtext.t)}</textarea>
+        <div class="m-shapes">${R.SHAPES.map(s => `<button class="chip ${mtext.shape === s ? 'on' : ''}" data-action="m-shape" data-shape="${s}">${s}</button>`).join('')}</div>
+        <div class="m-btns">
+          <button class="pill ghost" data-action="m-close">cancel</button>
+          <button class="pill" data-action="m-words-done">done</button>
+        </div>`);
+    }
+
+    // export
+    const share = coarse && navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] });
+    return wrapSheet('Save your month', `
+      <h3>save your month</h3>
+      <div class="m-preview">${mexp.preview
+        ? `<img src="${mexp.preview}" alt="Preview of your month">`
+        : `<span class="m-busy">${mascot(true)}drawing…</span>`}</div>
+      <div class="seg">
+        <button class="${mexp.fmt === 'png' ? 'on' : ''}" data-action="m-fmt" data-fmt="png">image</button>
+        <button class="${mexp.fmt === 'pdf' ? 'on' : ''}" data-action="m-fmt" data-fmt="pdf">pdf</button>
+      </div>
+      <div class="m-row">
+        <span>show ✓ ticks</span>
+        <button class="switch ${mexp.ticks ? 'on' : ''}" role="switch" aria-checked="${mexp.ticks}" aria-label="Show ticks" data-action="m-exp" data-opt="ticks"></button>
+      </div>
+      <div class="m-row">
+        <span>dotted paper</span>
+        <button class="switch ${mexp.dots ? 'on' : ''}" role="switch" aria-checked="${mexp.dots}" aria-label="Dotted paper" data-action="m-exp" data-opt="dots"></button>
+      </div>
+      <div class="m-btns">
+        <button class="pill ghost" data-action="m-close">cancel</button>
+        <button class="pill" data-action="m-save" ${mexp.blob ? '' : 'disabled'}>${mexp.fmt === 'pdf' ? 'save pdf' : share ? 'save to photos' : 'download'}</button>
+      </div>`);
+  }
+
+  // where a new photo / sticker / text goes: the middle of the part of the board you can see
+  function spot() {
+    const b = app.querySelector('.board').getBoundingClientRect();
+    const a = app.getBoundingClientRect();
+    const top = Math.max(b.top, a.top, 0), bottom = Math.min(b.bottom, a.bottom, innerHeight - 90);
+    const y = top < bottom ? (top + bottom) / 2 : b.top + b.height / 2;
+    // a little scatter, so a few added in a row don't stack exactly on top of each other
+    return { x: 50 + Math.random() * 30 - 15, y: (y - b.top) * 100 / b.width + Math.random() * 16 - 8 };
+  }
+
+  const dayCentre = (g, n) => {
+    const i = g.off + n - 1;
+    return { x: (i % 7 + .5) * 100 / 7, y: R.WK + (Math.floor(i / 7) + .5) * R.CELL };
+  };
+
+  function addEl(key, e, at) {
+    const m = monthOf(key, true);
+    Object.assign(e, at || spot(), { id: uid(), r: Math.round(Math.random() * 10 - 5) });
+    m.els.push(e);
+    msel = e.id;
+    save();
+    sfx('pop');
+  }
+
+  // photos come from a file picker that lives outside #app, so re-rendering doesn't lose it
+  const picker = document.createElement('input');
+  picker.type = 'file';
+  picker.accept = 'image/*';
+  picker.multiple = true;
+  picker.hidden = true;
+  document.body.appendChild(picker);
+  let photoAt = null;
+
+  picker.addEventListener('change', async () => {
+    const files = [...picker.files];
+    picker.value = '';
+    const key = viewKey();
+    const at = photoAt;
+    for (const [n, f] of files.entries()) {
+      try {
+        const { blob, a } = await R.shrinkPhoto(f);
+        const id = uid();
+        await R.photos.put(id, blob);
+        addEl(key, { type: 'photo', p: id, a, w: 26, frame: 'polaroid' }, at && { x: at.x + n * 4, y: at.y + n * 4 });
+        render();
+      } catch (e) {
+        toast('couldn’t add that photo');
+      }
+    }
+  });
+
+  async function buildExport() {
+    const run = mexp;
+    const key = viewKey();
+    const m = monthOf(key);
+    const g = grid(key);
+    const { ticked, days } = monthStats(key);
+    try {
+      const canvas = await R.renderPage({
+        title: monthName(g.Y, g.M),
+        sub: `${g.Y}${state.user ? ' · ' + state.user : ''}`,
+        stats: ticked ? `${ticked} ticked · ${days} busy ${days === 1 ? 'day' : 'days'}` : '',
+        highlights: m.hl || '',
+        rows: g.rows,
+        cells: g.cells.map(c => ({ n: c.n, out: c.out, note: c.out ? '' : m.notes[c.n], ticks: (state.log[c.key] || []).length })),
+        els: m.els,
+        showTicks: run.ticks,
+        dots: run.dots,
+      });
+      const blob = await R.exportBlob(canvas, run.fmt);
+      if (mexp !== run) return; // closed, or the options changed meanwhile
+      run.preview = canvas.toDataURL('image/jpeg', .75);
+      run.blob = blob;
+    } catch (e) {
+      if (mexp !== run) return;
+      msheet = null;
+      mexp = null;
+      toast('couldn’t draw that, sorry');
+    }
+    render();
+  }
+
+  function deliver(blob, name) {
+    const file = new File([blob], name, { type: blob.type });
+    if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {});
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('saved ✿');
+  }
+
+  const closeMonthSheet = () => { msheet = null; mday = null; mtext = null; mexp = null; };
+
   function render() {
     resetRepeats();
     const r = route();
     if (!r.startsWith('/list/')) sheet = null;
+    if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); }
     let html;
-    if (r.startsWith('/list/')) {
+    if (r === '/month' || r.startsWith('/month/')) {
+      html = monthView(viewKey());
+    } else if (r.startsWith('/list/')) {
       const l = currentList();
       html = l ? listView(l) : homeView();
     } else if (r === '/new') {
@@ -626,6 +982,8 @@
     lastRoute = key;
 
     app.innerHTML = html;
+    app.querySelectorAll('img[data-photo]:not([src])').forEach(img =>
+      R.photos.url(img.dataset.photo).then(u => { if (u) img.src = u; }).catch(() => {}));
     justAdded = justToggled = null;
     sheetFresh = false;
 
@@ -686,7 +1044,6 @@
   // all synthesised with Web Audio, so there are no sound files to download
 
   const SPEAKER = '<path d="M4 9h4l5-4v14l-5-4H4z"/>';
-  const icon24 = body => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   const SPEAKER_ON = icon24(SPEAKER + '<path d="M16 9c1.5 1.5 1.5 4.5 0 6 M18.5 6.5c3 3 3 8 0 11"/>');
   const SPEAKER_OFF = icon24(SPEAKER + '<path d="M17 9.5l5 5 M22 9.5l-5 5"/>');
 
@@ -855,8 +1212,10 @@
       case 'toggle': {
         if (!item) return;
         const box = itemEl.querySelector('.check').getBoundingClientRect();
+        const was = item.doneAt;
         item.done = !item.done;
         item.doneAt = item.done ? Date.now() : null;
+        if (item.done) logTick(list, item); else unlogTick(item, was);
         justToggled = item.id;
         save();
         const { total, done } = stats(list);
@@ -925,8 +1284,203 @@
         sfx('poof');
         state.lists = state.lists.filter(l => l !== list); save(); go('/');
         break;
+      default:
+        if (t.dataset.action.startsWith('m-')) monthAction(t);
     }
   });
+
+  function monthAction(t) {
+    const key = viewKey();
+    const m = monthOf(key, true);
+    const sel = m.els.find(e => e.id === msel);
+    const open = (name, fresh = true) => { msheet = name; sheetFresh = fresh; };
+
+    switch (t.dataset.action) {
+      case 'm-go':
+        sfx('tap'); msel = null; go('/month/' + t.dataset.key); return;
+      case 'm-day':
+        // with something selected, tapping the calendar just puts it down
+        if (msel) { msel = null; break; }
+        sfx('tap'); mday = +t.dataset.day; open('day');
+        break;
+      case 'm-close':
+        closeMonthSheet(); break;
+      case 'm-deselect':
+        sfx('tap'); msel = null; break;
+      case 'm-ticks':
+        state.showTicks = !showTicks(); save(); sfx('tap'); break;
+      case 'm-photo':
+        photoAt = msheet === 'day' ? dayCentre(grid(key), mday) : null;
+        closeMonthSheet();
+        picker.click();
+        break;
+      case 'm-tray':
+        sfx('tap'); msel = null; open('tray'); break;
+      case 'm-tab':
+        sfx('tap'); mtab = t.dataset.tab; open('tray', false); break;
+      case 'm-add-stk': {
+        const s = R.stickerById(t.dataset.k);
+        closeMonthSheet();
+        addEl(key, { type: 'sticker', k: s.id, w: s.tab === 'tape' ? 20 : s.tab === 'scribbles' ? 16 : 12 });
+        break;
+      }
+      case 'm-add-stamp': {
+        const [text, shape] = R.STAMPS[+t.dataset.i];
+        closeMonthSheet();
+        addEl(key, { type: 'text', t: text, shape, s: 4.4 });
+        break;
+      }
+      case 'm-words':
+        sfx('tap'); msel = null; mtext = { t: '', shape: 'plain' }; open('text');
+        pendingFocus = '.m-words';
+        break;
+      case 'm-edit-text':
+        if (!sel) return;
+        sfx('tap'); mtext = { id: sel.id, t: sel.t, shape: sel.shape }; open('text');
+        pendingFocus = '.m-words';
+        break;
+      case 'm-shape':
+        sfx('tap'); mtext.shape = t.dataset.shape; open('text', false); break;
+      case 'm-words-done': {
+        const { t: words, shape } = mtext;
+        const text = words.trim();
+        const e = mtext.id && m.els.find(x => x.id === mtext.id);
+        if (e && text) Object.assign(e, { t: text, shape });
+        else if (e) m.els = m.els.filter(x => x !== e);
+        closeMonthSheet();
+        if (!e && text) addEl(key, { type: 'text', t: text, shape, s: 5 });
+        else { sfx('tap'); save(); }
+        break;
+      }
+      case 'm-frame':
+        if (sel) { sel.frame = t.dataset.frame; sfx('tap'); save(); }
+        break;
+      case 'm-front':
+        if (sel) { m.els = m.els.filter(e => e !== sel).concat(sel); sfx('tap'); save(); }
+        break;
+      case 'm-del':
+        if (!sel) return;
+        if (sel.type === 'photo') R.photos.del(sel.p);
+        m.els = m.els.filter(e => e !== sel);
+        msel = null;
+        sfx('poof'); save();
+        break;
+      case 'm-export':
+        sfx('tap');
+        mexp = { fmt: 'png', ticks: showTicks(), dots: true };
+        open('export');
+        render();
+        buildExport();
+        return;
+      case 'm-fmt':
+      case 'm-exp':
+        if (t.dataset.fmt === mexp.fmt) return;
+        sfx('tap');
+        mexp = { ...mexp, preview: null, blob: null };
+        if (t.dataset.fmt) mexp.fmt = t.dataset.fmt; else mexp[t.dataset.opt] = !mexp[t.dataset.opt];
+        open('export', false);
+        render();
+        buildExport();
+        return;
+      case 'm-save': {
+        const g = grid(key);
+        deliver(mexp.blob, `scribble-${monthName(g.Y, g.M)}-${g.Y}.${mexp.fmt}`);
+        return;
+      }
+      default:
+        return;
+    }
+    render();
+  }
+
+  // ---------- dragging, pinching and twisting things on the month page ----------
+
+  function paintEl(el, e) {
+    el.style.left = e.x + 'cqw';
+    el.style.top = e.y + 'cqw';
+    el.style.setProperty('--r', e.r + 'deg');
+    if (e.type === 'text') el.style.fontSize = e.s + 'cqw';
+    else el.style.setProperty('--w', e.w + 'cqw');
+  }
+
+  const twoFingers = g => {
+    const [a, b] = [...g.pts.values()];
+    return {
+      dist: Math.hypot(b.x - a.x, b.y - a.y) || 1,
+      ang: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI,
+      cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2,
+      x: g.e.x, y: g.e.y, r: g.e.r || 0, z: elSize(g.e),
+    };
+  };
+
+  app.addEventListener('pointerdown', ev => {
+    const el = ev.target.closest('.el');
+    if (!el || ev.target.closest('[data-action]')) return;
+    const e = monthOf(viewKey()).els.find(x => x.id === el.dataset.el);
+    if (!e) return;
+    ev.preventDefault();
+    el.setPointerCapture(ev.pointerId);
+    if (gest && gest.e === e) { // a second finger: pinch to resize, twist to rotate
+      gest.pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      gest.two = twoFingers(gest);
+      gest.moved = true;
+      return;
+    }
+    const b = el.closest('.board').getBoundingClientRect();
+    gest = {
+      el, e, b, k: 100 / b.width, mode: ev.target.dataset.handle || 'move',
+      pts: new Map([[ev.pointerId, { x: ev.clientX, y: ev.clientY }]]),
+      sx: ev.clientX, sy: ev.clientY, x0: e.x, y0: e.y, r0: e.r || 0, z0: elSize(e), moved: false,
+    };
+  });
+
+  app.addEventListener('pointermove', ev => {
+    const g = gest;
+    if (!g || !g.pts.has(ev.pointerId)) return;
+    g.pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    const e = g.e;
+    if (Math.abs(ev.clientX - g.sx) + Math.abs(ev.clientY - g.sy) > 6) g.moved = true;
+    if (g.two && g.pts.size > 1) {
+      const now = twoFingers(g);
+      setSize(e, g.two.z * now.dist / g.two.dist);
+      e.r = g.two.r + now.ang - g.two.ang;
+      e.x = g.two.x + (now.cx - g.two.cx) * g.k;
+      e.y = g.two.y + (now.cy - g.two.cy) * g.k;
+    } else if (g.mode === 'move') {
+      e.x = g.x0 + (ev.clientX - g.sx) * g.k;
+      e.y = g.y0 + (ev.clientY - g.sy) * g.k;
+    } else {
+      const cx = g.b.left + g.x0 / g.k, cy = g.b.top + g.y0 / g.k;
+      if (g.mode === 'size') {
+        setSize(e, g.z0 * Math.hypot(ev.clientX - cx, ev.clientY - cy) / (Math.hypot(g.sx - cx, g.sy - cy) || 1));
+      } else {
+        e.r = g.r0 + (Math.atan2(ev.clientY - cy, ev.clientX - cx) - Math.atan2(g.sy - cy, g.sx - cx)) * 180 / Math.PI;
+      }
+    }
+    e.x = Math.min(100, Math.max(0, e.x));
+    e.y = Math.min(g.b.height * g.k, Math.max(0, e.y));
+    paintEl(g.el, e);
+  });
+
+  const endGesture = ev => {
+    const g = gest;
+    if (!g || !g.pts.has(ev.pointerId)) return;
+    g.pts.delete(ev.pointerId);
+    if (g.pts.size) { // one finger still down: carry on dragging from here
+      const [p] = [...g.pts.values()];
+      Object.assign(g, { two: null, mode: 'move', sx: p.x, sy: p.y, x0: g.e.x, y0: g.e.y });
+      return;
+    }
+    gest = null;
+    const e = g.e;
+    e.x = Math.round(e.x * 10) / 10;
+    e.y = Math.round(e.y * 10) / 10;
+    e.r = Math.round(e.r || 0);
+    save();
+    if (msel !== e.id) { sfx('tap'); msel = e.id; render(); }
+  };
+  app.addEventListener('pointerup', endGesture);
+  app.addEventListener('pointercancel', endGesture);
 
   app.addEventListener('submit', e => {
     e.preventDefault();
@@ -964,6 +1518,18 @@
       leroArmed = true;
     }
 
+    // month page fields save as you type, so a re-render never loses words
+    const f = e.target.dataset.field;
+    if (f === 'm-hl' || f === 'm-note') {
+      const m = monthOf(viewKey(), true);
+      if (f === 'm-hl') m.hl = e.target.value;
+      else if (e.target.value.trim()) m.notes[mday] = e.target.value;
+      else delete m.notes[mday];
+      save();
+      return;
+    }
+    if (f === 'm-text') { mtext.t = e.target.value; return; }
+
     const n = e.target.name;
     if (n === 'name' && draft) {
       draft.name = e.target.value;
@@ -992,7 +1558,7 @@
 
   // Enter in a heading input just commits the rename
   app.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.target.dataset.field) e.target.blur();
+    if (e.key === 'Enter' && e.target.dataset.field && e.target.tagName === 'INPUT') e.target.blur();
   });
 
   document.addEventListener('keydown', e => {
@@ -1000,6 +1566,8 @@
     const egg = document.querySelector('.lero');
     if (egg) egg.remove();
     else if (sheet) { sheet = null; render(); }
+    else if (msheet) { closeMonthSheet(); render(); }
+    else if (msel) { msel = null; render(); }
   });
 
   window.addEventListener('hashchange', render);
@@ -1019,6 +1587,14 @@
   // installable + offline (see sw.js)
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+
+  // older saves have no month data yet; seed the tick log from things already ticked
+  if (!state.months) state.months = {};
+  if (!state.log) {
+    state.log = {};
+    state.lists.forEach(l => l.sections.forEach(s => s.items.forEach(i => { if (i.done && i.doneAt) logTick(l, i); })));
+    save();
   }
 
   render();
