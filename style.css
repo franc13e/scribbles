@@ -696,7 +696,9 @@ h1, h2, h3 { font-family: var(--hand); font-weight: 400; margin: 0; line-height:
 .m-stats small { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
 /* the board is sized in cqw (1% of its width), the same units recap.js exports in */
-.board { position: relative; container-type: inline-size; margin: 0 -10px; }
+/* the wrap scrolls sideways when zoomed in; its padding keeps things on the edges from being cut off */
+.board-wrap { margin: -12px -24px; padding: 12px 14px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.board { position: relative; container-type: inline-size; width: calc(var(--z, 1) * 100%); }
 .wk {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -805,6 +807,21 @@ button.cell:active { background: var(--blob); }
 .m-legend i { font-style: normal; background: var(--bg); border-radius: 6px; padding: 0 5px; }
 
 .m-dock { display: flex; gap: 10px; }
+.m-zoom {
+  position: absolute;
+  right: 24px;
+  top: -24px;
+  display: flex;
+  align-items: center;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.m-zoom button { width: 34px; height: 30px; font-size: 20px; line-height: 1; color: var(--ink); }
+.m-zoom button:disabled { color: var(--line); cursor: default; }
+.m-zoom span { min-width: 38px; text-align: center; }
 .m-dock > .pill { flex: 1; font-size: 17px; padding: 11px 8px; }
 .m-tools { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .m-tools .chip { padding: 6px 14px; }
@@ -1137,9 +1154,17 @@ button.cell:active { background: var(--blob); }
 .b-pick-btn.ghost { border-style: dashed; color: var(--ink-soft); }
 .b-pick-btn:active { transform: scale(.98); }
 
-/* a note is a sheet of lined paper in its colour */
-.screen.note { background: var(--tint); }
-.n-tints { display: flex; gap: 10px; margin: 10px 0 6px; }
+/* a note is a sheet of dotted or blank paper in its colour */
+.screen.note { background-color: var(--tint); }
+.screen.note.dots {
+  background-image: radial-gradient(circle, rgba(30, 30, 30, .09) 1px, transparent 1.3px);
+  background-size: 22px 22px;
+  background-position: 11px 11px;
+}
+.note .dock { background: linear-gradient(to bottom, transparent, var(--tint) 35%); }
+.n-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 6px; }
+.n-tools .b-sub { margin: 0; }
+.n-tints { display: flex; gap: 8px; }
 .n-tint { width: 26px; height: 26px; border-radius: 50%; background: var(--tint); border: 1.5px solid var(--line); }
 .n-tint.on { border: 2px solid var(--ink); box-shadow: inset 0 0 0 3px var(--paper); }
 .n-body {
@@ -1151,11 +1176,50 @@ button.cell:active { background: var(--blob); }
   overflow: hidden;
   outline: none;
   font-size: 19px;
-  line-height: 32px;
+  line-height: 1.5;
   padding: 0;
-  margin-top: 6px;
-  background: repeating-linear-gradient(transparent 0 30.5px, var(--line) 30.5px 32px) local;
+  margin-top: 10px;
+  background: transparent;
 }
+
+/* small sub-filters: savoury / sweet, dots / blank */
+.b-sub { display: flex; gap: 6px; margin: 0 0 10px; }
+.b-sub button {
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 12px;
+  font-size: 15px;
+  color: var(--ink-soft);
+  background: var(--paper);
+}
+.b-sub button.on { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.b-sub i { font-style: normal; margin-left: 4px; opacity: .6; }
+.r-flavours { margin: 8px 0 0; }
+
+/* a rubber date stamp; the date input sits invisibly on top so tapping it opens the date picker */
+.n-stamp {
+  position: relative;
+  align-self: flex-start;
+  margin: 8px 0 6px 4px;
+  padding: 2px 12px;
+  border: 1.8px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 0 0 0 2.5px var(--tint, var(--paper)), 0 0 0 4px var(--ink);
+  font-family: var(--hand);
+  font-size: 18px;
+  transform: rotate(-3deg);
+  cursor: pointer;
+}
+.n-stamp input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.n-stamp.sm { display: inline-block; margin: 8px 0 2px 2px; padding: 0 8px; font-size: 13px; color: var(--ink); border-width: 1.3px; box-shadow: none; }
+
+.n-photos { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 16px 14px; margin: 14px 0 6px; }
+.n-ph { --w: 148px; position: relative; width: var(--w); transform: rotate(var(--r)); }
+.n-photos.one .n-ph { --w: 230px; }
+.n-ph img { display: block; width: 100%; max-height: 240px; object-fit: cover; background: var(--blob); -webkit-user-drag: none; }
+.n-ph.sel { outline: 1.5px dashed var(--ink); outline-offset: 5px; }
+.n-ph-tools { margin: 10px 0 2px; }
+.n-thumb { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; margin-bottom: 6px; background: var(--blob); }
 
 /* ---------- lero lero ---------- */
 

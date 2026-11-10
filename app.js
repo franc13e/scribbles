@@ -353,7 +353,9 @@
   let mtext = null;           // words being written: { id?, t, shape }
   let mexp = null;            // export options and the finished file: { fmt, ticks, dots, preview, blob }
   let gest = null;            // drag / pinch in progress on the month page
+  let mzoom = 1;              // month page zoom, 1 = the whole board fits
   let bsheet = false;         // recipe page: the "which grocery list?" sheet is open
+  let nsel = null;            // note page: the photo whose frame / remove tools are showing
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -823,16 +825,23 @@
           </div>
         </div>
 
-        <div class="board">
+        <div class="board-wrap"><div class="board" style="--z:${mzoom}">
           <div class="wk">${WEEKDAYS.map(d => `<span>${d}</span>`).join('')}</div>
           <div class="cal">${cells}</div>
           <div class="layer">${m.els.map(elHtml).join('')}</div>
-        </div>
+        </div></div>
         <p class="m-legend"><span>${sel ? 'drag · pinch · twist' : 'tap a day to write'}</span>
           ${showTicks() ? '<span><i>✓ 3</i> = ticked that day</span>' : ''}</p>
 
         <div class="spacer"></div>
-        <div class="dock m-dock">${dock}</div>
+        <div class="dock m-dock">
+          <div class="m-zoom">
+            <button data-action="m-zoom" data-dir="-1" aria-label="Zoom out" ${mzoom > 1 ? '' : 'disabled'}>−</button>
+            <span>${mzoom > 1 ? mzoom.toFixed(1).replace('.0', '') + '×' : 'zoom'}</span>
+            <button data-action="m-zoom" data-dir="1" aria-label="Zoom in" ${mzoom < ZMAX ? '' : 'disabled'}>+</button>
+          </div>
+          ${dock}
+        </div>
       </section>
       ${msheet ? monthSheet(key, m, g) : ''}`;
   }
@@ -914,11 +923,13 @@
   // where a new photo / sticker / text goes: the middle of the part of the board you can see
   function spot() {
     const b = app.querySelector('.board').getBoundingClientRect();
+    const w = app.querySelector('.board-wrap').getBoundingClientRect();
     const a = app.getBoundingClientRect();
     const top = Math.max(b.top, a.top, 0), bottom = Math.min(b.bottom, a.bottom, innerHeight - 90);
     const y = top < bottom ? (top + bottom) / 2 : b.top + b.height / 2;
-    // a little scatter, so a few added in a row don't stack exactly on top of each other
-    return { x: 50 + Math.random() * 30 - 15, y: (y - b.top) * 100 / b.width + Math.random() * 16 - 8 };
+    const x = (Math.max(b.left, w.left) + Math.min(b.right, w.right)) / 2;
+    // a little scatter (less when zoomed in), so a few added in a row don't stack exactly on top of each other
+    return { x: (x - b.left) * 100 / b.width + (Math.random() * 30 - 15) / mzoom, y: (y - b.top) * 100 / b.width + (Math.random() * 16 - 8) / mzoom };
   }
 
   const dayCentre = (g, n) => {
@@ -942,11 +953,11 @@
   picker.multiple = true;
   picker.hidden = true;
   document.body.appendChild(picker);
-  let pickFor = null; // { at } on the month page (at = where to put it), { recipe: id } for a recipe
+  let pickFor = null; // { at } on the month page (at = where to put it), { recipe: id } or { note: id }
 
   const pickPhotos = to => {
     pickFor = to;
-    picker.multiple = !to.recipe;
+    picker.multiple = !to.recipe;  // a recipe has one photo, notes and months take a few
     picker.click();
   };
 
@@ -967,6 +978,24 @@
         render();
       } catch (e) {
         toast('couldn’t add that photo');
+      }
+      return;
+    }
+    if (pickFor && pickFor.note) {
+      const n = state.notes.find(x => x.id === pickFor.note);
+      if (!n) return;
+      for (const f of files) {
+        try {
+          const { blob, a } = await R.shrinkPhoto(f);
+          const id = uid();
+          await R.photos.put(id, blob);
+          n.photos.push({ id: uid(), p: id, a, frame: 'polaroid' });
+          touch(n);
+          sfx('pop');
+          render();
+        } catch (e) {
+          toast('couldn’t add that photo');
+        }
       }
       return;
     }
@@ -1037,7 +1066,9 @@
   // ---------- notebook: recipes, notes and the monthly pages ----------
   // state.recipes = [{ id, name, photo: { p, a } | null, link, time, serves, ings: [row], steps: [row], notes, created, updated }]
   //   a row is { id, t: text, d: ticked off while cooking }
-  // state.notes = [{ id, title, body, tint, created, updated }]
+  //   flavour: '' | 'savoury' | 'sweet'
+  // state.notes = [{ id, title, body, tint, paper: 'dots' | 'blank', stamp: 'YYYY-MM-DD' | null,
+  //   photos: [{ id, p (photo id), a (height / width), frame }], created, updated }]
 
   const BOOK = icon24('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z M5 17a3 3 0 0 1 3-3h11 M9 8h6"/>');
   const LISTS = icon24('<path d="M9 6h11 M9 12h11 M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>');
@@ -1045,7 +1076,8 @@
   const PLATE = icon24('<path d="M3 11h18c0 5-4 8-9 8s-9-3-9-8z M12 8V6 M8.5 8.5 7.5 7 M15.5 8.5l1-1.5"/>');
   const LINK = icon24('<path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1 M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/>');
   const CART = icon24('<path d="M3 4h2.5l2 11h10l2-8H7 M9 19.5a1 1 0 1 0 0 .01 M17 19.5a1 1 0 1 0 0 .01"/>');
-  const BOOK_TABS = ['recipes', 'notes', 'months'];
+  const BOOK_TABS = ['months', 'recipes', 'notes'];
+  const FLAVOURS = ['savoury', 'sweet'];
   const TINTS = ['paper', 'butter', 'peach', 'sage', 'sky'];
 
   const routeId = prefix => {
@@ -1084,7 +1116,7 @@
     }));
     state.recipes = state.recipes.filter(r =>
       r.name.trim() || r.photo || r.ings.length || r.steps.length || r.notes.trim() || r.link.trim());
-    state.notes = state.notes.filter(n => n.title.trim() || n.body.trim());
+    state.notes = state.notes.filter(n => n.title.trim() || n.body.trim() || n.photos.length);
     if (rows || state.recipes.length + state.notes.length !== before) save();
   }
 
@@ -1111,9 +1143,10 @@
 
   const noteCard = n => `
     <a class="n-card t-${n.tint}" href="#/note/${n.id}" data-q="${esc((n.title + ' ' + n.body).toLowerCase())}">
+      ${n.photos.length ? `<img class="n-thumb" data-photo="${esc(n.photos[0].p)}" alt="" draggable="false">` : ''}
       ${n.title.trim() ? `<h3>${esc(n.title)}</h3>` : ''}
       ${n.body.trim() ? `<p>${esc(n.body.trim())}</p>` : ''}
-      <small>${shortDate(n.updated)}</small>
+      ${n.stamp ? `<small class="n-stamp sm">${stampLabel(n.stamp)}</small>` : `<small>${shortDate(n.updated)}</small>`}
     </a>`;
 
   function monthCard(key) {
@@ -1134,7 +1167,7 @@
   }
 
   function bookView() {
-    const tab = BOOK_TABS.includes(state.bookTab) ? state.bookTab : 'recipes';
+    const tab = BOOK_TABS.includes(state.bookTab) ? state.bookTab : 'months';
     const recipes = [...state.recipes].sort((a, b) => b.created - a.created);
     const notes = [...state.notes].sort((a, b) => b.updated - a.updated);
     const empty = (art, words) => `<div class="empty b-empty"><div class="art">${art}</div><p>${words}</p></div>`;
@@ -1142,8 +1175,14 @@
 
     let body, add;
     if (tab === 'recipes') {
-      body = recipes.length ? `${search(recipes.length)}<div class="r-grid">${recipes.map(recipeCard).join('')}</div>`
-        : empty(DOODLES.recipe, 'no recipes yet —<br>jot down a favourite ♡');
+      const fl = FLAVOURS.includes(state.flavour) ? state.flavour : 'all';
+      const shown = fl === 'all' ? recipes : recipes.filter(r => r.flavour === fl);
+      const sub = ['all', ...FLAVOURS].map(f => `<button class="${fl === f ? 'on' : ''}" data-action="b-flavour" data-f="${f}">${f}<i>${
+        f === 'all' ? recipes.length : recipes.filter(r => r.flavour === f).length}</i></button>`).join('');
+      body = !recipes.length ? empty(DOODLES.recipe, 'no recipes yet —<br>jot down a favourite ♡')
+        : `<div class="b-sub">${sub}</div>${search(recipes.length)}${shown.length
+          ? `<div class="r-grid">${shown.map(recipeCard).join('')}</div>`
+          : `<p class="empty">no ${fl} recipes yet —<br>pick savoury or sweet on a recipe</p>`}`;
       add = '<button class="pill grow" data-action="b-new-recipe">New recipe</button>';
     } else if (tab === 'notes') {
       body = notes.length ? `${search(notes.length)}<div class="n-grid">${notes.map(noteCard).join('')}</div>`
@@ -1207,6 +1246,8 @@
               <div class="r-photo-btns"><button class="chip" data-action="b-photo">change</button><button class="chip" data-action="b-photo-del">remove</button></div></div>`
           : `<button class="r-photo r-add-photo" data-action="b-photo">${ADD_ICONS.photo}<span>add a photo</span></button>`}
         <input class="title-input" data-field="r-name" value="${esc(r.name)}" maxlength="60" placeholder="recipe name" aria-label="Recipe name">
+        <div class="b-sub r-flavours">${FLAVOURS.map(f =>
+          `<button class="${r.flavour === f ? 'on' : ''}" data-action="b-set-flavour" data-f="${f}">${f}</button>`).join('')}</div>
         <div class="r-meta">
           <label class="r-chip">${CLOCK}<input data-field="r-time" value="${esc(r.time)}" maxlength="16" placeholder="time" aria-label="Time"></label>
           <label class="r-chip">${PLATE}<input data-field="r-serves" value="${esc(r.serves)}" maxlength="16" placeholder="serves" aria-label="Serves"></label>
@@ -1267,21 +1308,48 @@
     toast(add.length ? `added ${add.length} to ${l.name} ✿` : `already on ${l.name} ✿`);
   }
 
+  // "tue 10 nov", with the year only when it isn't this year
+  function stampLabel(key) {
+    const [Y, M, D] = key.split('-').map(Number);
+    const d = new Date(Y, M - 1, D);
+    return `${d.toLocaleString('en', { weekday: 'short' })} ${D} ${d.toLocaleString('en', { month: 'short' })}${
+      Y === new Date().getFullYear() ? '' : ' ' + Y}`.toLowerCase();
+  }
+
+  const notePhoto = (x, i) => `
+    <button class="n-ph fr-${x.frame} ${x.id === nsel ? 'sel' : ''}" data-action="b-nphoto" data-id="${x.id}" style="--r:${i % 2 ? 2.5 : -2}deg" aria-label="Photo">
+      <img data-photo="${esc(x.p)}" alt="" draggable="false" style="aspect-ratio:${x.frame === 'round' ? 1 : (1 / x.a).toFixed(4)}">
+    </button>`;
+
   function noteView(n) {
+    const sel = n.photos.find(x => x.id === nsel);
     return `
-      <section class="screen note t-${n.tint}">
+      <section class="screen note t-${n.tint} ${n.paper === 'blank' ? '' : 'dots'}">
         <div class="topbar">
           <a class="text-btn" href="#/book">Back</a>
           <span class="kind-tag">${n.body || n.title ? 'edited ' + shortDate(n.updated) : 'new note'}</span>
         </div>
+        ${n.stamp ? `<label class="n-stamp">${stampLabel(n.stamp)}<input type="date" data-field="n-stamp" value="${n.stamp}" aria-label="Date"></label>` : ''}
         <input class="title-input" data-field="n-title" value="${esc(n.title)}" maxlength="60" placeholder="title" aria-label="Title">
-        <div class="n-tints">
-          ${TINTS.map(t => `<button class="n-tint t-${t} ${n.tint === t ? 'on' : ''}" data-action="b-tint" data-tint="${t}" aria-label="${t} paper"></button>`).join('')}
+        <div class="n-tools">
+          <div class="n-tints">
+            ${TINTS.map(t => `<button class="n-tint t-${t} ${n.tint === t ? 'on' : ''}" data-action="b-tint" data-tint="${t}" aria-label="${t} paper"></button>`).join('')}
+          </div>
+          <div class="b-sub">${['dots', 'blank'].map(p => `<button class="${(n.paper || 'dots') === p ? 'on' : ''}" data-action="b-paper" data-paper="${p}">${p}</button>`).join('')}</div>
         </div>
+        ${n.photos.length ? `<div class="n-photos ${n.photos.length === 1 ? 'one' : ''}">${n.photos.map(notePhoto).join('')}</div>` : ''}
+        ${sel ? `<div class="m-tools n-ph-tools">
+          ${FRAMES.map(f => `<button class="chip ${sel.frame === f ? 'on' : ''}" data-action="b-nframe" data-frame="${f}">${f}</button>`).join('')}
+          <button class="chip" data-action="b-nphoto-del">remove</button>
+        </div>` : ''}
         <textarea class="n-body autogrow" data-field="n-body" maxlength="20000" placeholder="write anything…" aria-label="Note">${esc(n.body)}</textarea>
         <div class="list-foot">
           <span></span>
           <button class="text-btn danger" data-action="b-del-note">Delete note</button>
+        </div>
+        <div class="dock m-dock">
+          <button class="pill ghost" data-action="b-nphoto-add">${ADD_ICONS.photo}photo</button>
+          <button class="pill ghost" data-action="b-stamp">${CAL}${n.stamp ? 'no date' : 'date stamp'}</button>
         </div>
       </section>`;
   }
@@ -1304,6 +1372,11 @@
     const rowOf = () => r && r[t.dataset.list].find(x => x.id === t.closest('[data-row]').dataset.row);
 
     switch (t.dataset.action) {
+      case 'b-flavour':
+        sfx('tap'); state.flavour = t.dataset.f; save(); render(); return;
+      case 'b-set-flavour':
+        r.flavour = r.flavour === t.dataset.f ? '' : t.dataset.f;
+        sfx('tap'); touch(r); render(); return;
       case 'b-tab':
         sfx('tap'); state.bookTab = t.dataset.tab; save(); render(); return;
       case 'b-new-recipe': {
@@ -1317,7 +1390,7 @@
       }
       case 'b-new-note': {
         sfx('pop');
-        const x = { id: uid(), title: '', body: '', tint: 'paper', created: Date.now(), updated: Date.now() };
+        const x = { id: uid(), title: '', body: '', tint: 'paper', paper: 'dots', stamp: null, photos: [], created: Date.now(), updated: Date.now() };
         state.notes.push(x);
         save();
         pendingFocus = { sel: '.n-body' };
@@ -1376,10 +1449,33 @@
       }
       case 'b-close':
         bsheet = false; render(); return;
+      case 'b-paper':
+        sfx('tap'); n.paper = t.dataset.paper; touch(n); render(); return;
+      case 'b-stamp':
+        sfx(n.stamp ? 'poof' : 'pop'); n.stamp = n.stamp ? null : ymd(Date.now()); touch(n); render(); return;
+      case 'b-nphoto-add':
+        nsel = null; pickPhotos({ note: n.id }); return;
+      case 'b-nphoto':
+        sfx('tap'); nsel = nsel === t.dataset.id ? null : t.dataset.id; render(); return;
+      case 'b-nframe': {
+        const x = n.photos.find(y => y.id === nsel);
+        if (x) { sfx('tap'); x.frame = t.dataset.frame; touch(n); render(); }
+        return;
+      }
+      case 'b-nphoto-del': {
+        const x = n.photos.find(y => y.id === nsel);
+        if (!x) return;
+        R.photos.del(x.p);
+        n.photos = n.photos.filter(y => y !== x);
+        nsel = null;
+        sfx('poof'); touch(n); render();
+        return;
+      }
       case 'b-tint':
         sfx('tap'); n.tint = t.dataset.tint; touch(n); render(); return;
       case 'b-del-note':
-        if (n.body.trim() && !confirm('Delete this note? This can’t be undone.')) return;
+        if ((n.body.trim() || n.photos.length) && !confirm('Delete this note? This can’t be undone.')) return;
+        n.photos.forEach(x => R.photos.del(x.p));
         state.notes = state.notes.filter(x => x !== n);
         sfx('poof'); save(); go('/book');
         return;
@@ -1413,8 +1509,11 @@
     resetRepeats();
     const r = route();
     if (!r.startsWith('/list/')) sheet = null;
-    if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); }
+    if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); mzoom = 1; }
+    const oldWrap = app.querySelector('.board-wrap');
+    const keepLeft = oldWrap ? oldWrap.scrollLeft : 0;
     if (!r.startsWith('/recipe/')) bsheet = false;
+    if (!r.startsWith('/note/')) nsel = null;
     if (!r.startsWith('/recipe/') && !r.startsWith('/note/')) tidyBook();
     let html;
     if (r === '/month' || r.startsWith('/month/')) {
@@ -1446,6 +1545,8 @@
     app.querySelectorAll('img[data-photo]:not([src])').forEach(img =>
       R.photos.url(img.dataset.photo).then(u => { if (u) img.src = u; }).catch(() => {}));
     app.querySelectorAll('textarea.autogrow').forEach(grow);
+    const wrap = app.querySelector('.board-wrap');
+    if (wrap && !changed) wrap.scrollLeft = keepLeft;
     justAdded = justToggled = null;
     sheetFresh = false;
 
@@ -1611,6 +1712,11 @@
   // ---------- events ----------
 
   app.addEventListener('click', e => {
+    // the date stamp is a hidden date input; open its picker wherever it's tapped
+    if (e.target.dataset.field === 'n-stamp') {
+      try { e.target.showPicker(); } catch (err) { /* older browsers open it themselves */ }
+      return;
+    }
     const t = e.target.closest('[data-action]');
     if (!t || t.disabled) return;
     const list = currentList();
@@ -1771,6 +1877,17 @@
         closeMonthSheet(); break;
       case 'm-deselect':
         sfx('tap'); msel = null; break;
+      case 'm-zoom': {
+        const z = +t.dataset.dir > 0 ? ZOOMS.find(x => x > mzoom + .01) : [...ZOOMS].reverse().find(x => x < mzoom - .01);
+        if (!z) return;
+        sfx('tap');
+        const w = app.querySelector('.board-wrap').getBoundingClientRect();
+        const a = app.getBoundingClientRect();
+        const top = Math.max(w.top, a.top, 0), bottom = Math.min(w.bottom, a.bottom, innerHeight - 90);
+        zoomAround(z, w.left + w.width / 2, top < bottom ? (top + bottom) / 2 : w.top);
+        render();
+        return;
+      }
       case 'm-ticks':
         state.showTicks = !showTicks(); save(); sfx('tap'); break;
       case 'm-photo':
@@ -1855,6 +1972,51 @@
     }
     render();
   }
+
+  // ---------- zooming the month page ----------
+  // the board is sized in cqw, so making it wider zooms everything on it; the wrap scrolls sideways
+
+  const ZOOMS = [1, 1.5, 2, 3];
+  const ZMAX = ZOOMS[ZOOMS.length - 1];
+
+  // zoom to z keeping the board point under (px, py) on screen where it is
+  function zoomAround(z, px, py) {
+    const board = app.querySelector('.board');
+    const wrap = app.querySelector('.board-wrap');
+    if (!board) return;
+    const b = board.getBoundingClientRect();
+    const fx = (px - b.left) / b.width, fy = (py - b.top) / b.height;
+    mzoom = Math.min(ZMAX, Math.max(1, z));
+    board.style.setProperty('--z', mzoom);
+    const nb = board.getBoundingClientRect();
+    wrap.scrollLeft += nb.left + fx * nb.width - px;
+    const dy = nb.top + fy * nb.height - py;
+    app.scrollTop += dy;   // the phone frame on desktop scrolls #app,
+    window.scrollBy(0, dy); // a real phone scrolls the page
+  }
+
+  // two fingers on the calendar (not on a photo or sticker) pinch-zoom it
+  let pinch = null;
+  const spread = ts => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY) || 1;
+  app.addEventListener('touchstart', e => {
+    if (e.touches.length !== 2 || gest || !e.target.closest('.board-wrap')) return;
+    if ([...e.touches].some(t => t.target.closest && t.target.closest('.el'))) return;
+    pinch = { d: spread(e.touches), z: mzoom };
+  }, { passive: true });
+  app.addEventListener('touchmove', e => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    const [a, b] = e.touches;
+    zoomAround(pinch.z * spread(e.touches) / pinch.d, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
+  }, { passive: false });
+  const endPinch = e => {
+    if (!pinch || e.touches.length > 1) return;
+    pinch = null;
+    mzoom = Math.round(mzoom * 10) / 10;
+    render(); // refresh the zoom buttons
+  };
+  app.addEventListener('touchend', endPinch);
+  app.addEventListener('touchcancel', endPinch);
 
   // ---------- dragging, pinching and twisting things on the month page ----------
 
@@ -2028,6 +2190,11 @@
       touch(r);
       return;
     }
+    if (f === 'n-stamp') {
+      const n = currentNote();
+      if (n && v) { n.stamp = v; touch(n); render(); }
+      return;
+    }
     if (f === 'n-title' || f === 'n-body') {
       const n = currentNote();
       if (n) { n[f === 'n-title' ? 'title' : 'body'] = v; touch(n); }
@@ -2117,6 +2284,7 @@
   if (!state.months) state.months = {};
   if (!state.recipes) state.recipes = [];
   if (!state.notes) state.notes = [];
+  state.notes.forEach(n => { if (!n.photos) n.photos = []; });
   if (!state.log) {
     state.log = {};
     state.lists.forEach(l => l.sections.forEach(s => s.items.forEach(i => { if (i.done && i.doneAt) logTick(l, i); })));
