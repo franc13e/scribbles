@@ -23,6 +23,11 @@ A tiny, doodly list app for groceries, wishlists, to-dos and anything else. It's
   </tr>
   <tr>
     <td align="center"><img src="screenshots/7-month.png" alt="Monthly recap calendar with notes, a photo and stickers" width="220"><br><sub>Monthly recap</sub></td>
+    <td align="center"><img src="screenshots/8-recipes.png" alt="Notebook with recipe cards" width="220"><br><sub>Notebook: recipes</sub></td>
+    <td align="center"><img src="screenshots/9-recipe.png" alt="A recipe with a photo, time, servings and a link" width="220"><br><sub>A recipe</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/10-notes.png" alt="Coloured sticky notes in the notebook" width="220"><br><sub>Notebook: notes</sub></td>
   </tr>
 </table>
 
@@ -34,7 +39,11 @@ A tiny, doodly list app for groceries, wishlists, to-dos and anything else. It's
 - **Hand-drawn feel:** wobbly ink doodles with gentle idle animations, handwritten fonts (Gochi Hand and Patrick Hand), and cards taped on like paper scraps.
 - **A mochi mascot:** it blinks and sways, hops when you add something, and says something nice when you tap it.
 - **Repeating items:** tap the loop icon to repeat an item every day, week, 2 weeks or month, or only on certain days (like Mon · Thu). It unticks itself when it's due again. Only to-do and "anything" lists repeat.
-- **Monthly recap:** a doodly calendar page for each month. Write a little note on any day, add photos, stickers (doodles, scribbles, stamps, tape and arrows) and your own words, then drag, pinch and twist them into place. Days show how many things you ticked off, and tapping a day lists them. Save the page as an image or a PDF.
+- **Monthly recap:** a doodly calendar page for each month. Write a little note on any day, add photos, stickers (doodles, scribbles, stamps, tape and arrows) and your own words, then drag, pinch and twist them into place. Days show how many things you ticked off, and tapping a day lists them. Save the page as an image or a PDF. It lives in the notebook.
+- **Notebook:** a second little app next to your lists, with three tabs:
+  - **recipes:** a photo, time, servings, a link to the original, bullet-point ingredients, numbered steps and notes. Paste a whole ingredient list or method and each line becomes its own row. Tick off ingredients and steps while you cook, and send the rest to a grocery list in one tap.
+  - **notes:** a plain lined page for ideas and anything else, in five paper colours, with search once you have a few.
+  - **months:** every monthly recap page.
 - **Cute sounds:** a paper-scratch when you tick something off, pops, a boing when you poke the mochi and a little chime when a list is done. All made in the browser, and you can mute them from the home screen.
 - **An easter egg:** try typing a certain song name 🎵
 - **Satisfying tick-offs:** a crayon scribble crosses each item out, with small sparkles. Finishing a list gets a bigger burst and a note from the mascot.
@@ -43,7 +52,7 @@ A tiny, doodly list app for groceries, wishlists, to-dos and anything else. It's
 
 - **Installable:** it's a PWA, so you can add it to your home screen and it opens full-screen like a normal app, even offline.
 
-Lists are saved on your device (localStorage, with recap photos in IndexedDB), so each device keeps its own lists. Exporting your month doubles as a backup.
+Lists are saved on your device (localStorage, with recap and recipe photos in IndexedDB), so each device keeps its own lists. Exporting your month doubles as a backup.
 
 ## Install on your phone
 

@@ -132,6 +132,60 @@
         <path class="tw d2" d="M170 104 l12 4 M168 124 l14 0 M164 146 l10 8 M196 92 l10 -4 M192 116 l14 6"/>
         <path d="M120 160 l12 2 M54 162 l-10 2 M200 150 l8 6"/>
       </g>`),
+
+    recipe: svg(`
+      <g ${S}>
+        <path d="M52 94 H168 V122 C168 140 156 150 140 150 H80 C64 150 52 140 52 122 Z"/>
+        <path d="M42 94 H178"/>
+        <path d="M52 106 H36 M168 106 H184"/>
+        <path d="M94 82 c0 -8 32 -8 32 0"/>
+        <g class="float">
+          <path d="M80 70 c-8 -10 8 -16 0 -28"/>
+          <path d="M110 64 c-8 -10 8 -16 0 -28"/>
+          <path d="M140 70 c-8 -10 8 -16 0 -28"/>
+        </g>
+        <path class="tw" d="M28 44 l8 8 M36 44 l-8 8"/>
+        <path class="tw d1" d="M188 40 v14 M181 47 h14"/>
+        <path d="M74 122 q36 10 72 0"/>
+      </g>
+      <g fill="currentColor">
+        <path class="beat" d="M194 128 c-5 -8 -17 -3 -10 6 l10 10 l10 -10 c7 -9 -5 -14 -10 -6z"/>
+        <circle cx="22" cy="132" r="3"/><circle class="tw d2" cx="62" cy="30" r="3"/><circle cx="160" cy="24" r="2.5"/>
+        <circle class="tw" cx="200" cy="80" r="3"/>
+      </g>`),
+
+    note: svg(`
+      <g ${S}>
+        <rect x="58" y="28" width="98" height="124" rx="8"/>
+        <path d="M48 46 h18 M48 68 h18 M48 90 h18 M48 112 h18 M48 134 h18"/>
+        <path d="M80 60 h56 M80 82 h48 M80 104 h54 M80 126 h30"/>
+        <g class="bob">
+          <path d="M178 36 l16 10 l-42 72 l-16 -10 z"/>
+          <path d="M136 108 l-4 22 l20 -12"/>
+          <path d="M172 46 l16 10"/>
+        </g>
+        <path class="tw" d="M30 30 l8 8 M38 30 l-8 8"/>
+        <path class="tw d1" d="M188 128 v14 M181 135 h14"/>
+      </g>
+      <g fill="currentColor">
+        <circle class="tw d2" cx="24" cy="100" r="3"/><circle cx="200" cy="96" r="3"/><circle cx="110" cy="164" r="2.5"/>
+        <circle class="tw" cx="206" cy="20" r="2.5"/>
+      </g>`),
+
+    month: svg(`
+      <g ${S}>
+        <rect x="46" y="40" width="128" height="110" rx="10"/>
+        <path d="M46 70 H174 M84 28 v24 M136 28 v24"/>
+        <path class="tw" d="M22 52 l8 8 M30 52 l-8 8"/>
+        <path class="tw d1" d="M194 112 v14 M187 119 h14"/>
+      </g>
+      <g fill="currentColor">
+        <circle cx="72" cy="90" r="3.5"/><circle cx="98" cy="90" r="3.5"/><circle cx="124" cy="90" r="3.5"/><circle cx="150" cy="90" r="3.5"/>
+        <circle cx="72" cy="112" r="3.5"/><circle cx="98" cy="112" r="3.5"/><circle cx="150" cy="112" r="3.5"/>
+        <circle cx="72" cy="134" r="3.5"/><circle cx="98" cy="134" r="3.5"/><circle cx="124" cy="134" r="3.5"/>
+        <path class="beat" d="M124 106 c-5 -8 -17 -3 -10 6 l10 10 l10 -10 c7 -9 -5 -14 -10 -6z"/>
+        <circle class="tw d2" cx="200" cy="30" r="3"/><circle cx="24" cy="140" r="3"/>
+      </g>`),
   };
 
   // little mochi buddy with a sprout; happy = ^ ^ eyes
@@ -273,7 +327,7 @@
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.lists)) return s;
     } catch (e) { /* fall through */ }
-    return { seen: false, user: '', lists: [], log: {}, months: {} };
+    return { seen: false, user: '', lists: [], log: {}, months: {}, recipes: [], notes: [] };
   }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
@@ -299,6 +353,7 @@
   let mtext = null;           // words being written: { id?, t, shape }
   let mexp = null;            // export options and the finished file: { fmt, ticks, dots, preview, blob }
   let gest = null;            // drag / pinch in progress on the month page
+  let bsheet = false;         // recipe page: the "which grocery list?" sheet is open
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -452,7 +507,7 @@
         ${body}
         <div class="spacer"></div>
         <div class="dock dock-row">
-          <a class="pill ghost" href="#/month">${CAL}month</a>
+          <a class="pill ghost" href="#/book">${BOOK}notebook</a>
           <button class="pill grow" data-action="new">New list</button>
         </div>
       </section>`;
@@ -743,7 +798,7 @@
     return `
       <section class="screen month">
         <div class="m-top">
-          <a class="m-btn" href="#/">lists</a>
+          <a class="m-btn" href="#/book">back</a>
           <div class="m-title">
             <h1>${name}</h1>
             <div class="m-nav">
@@ -887,13 +942,36 @@
   picker.multiple = true;
   picker.hidden = true;
   document.body.appendChild(picker);
-  let photoAt = null;
+  let pickFor = null; // { at } on the month page (at = where to put it), { recipe: id } for a recipe
+
+  const pickPhotos = to => {
+    pickFor = to;
+    picker.multiple = !to.recipe;
+    picker.click();
+  };
 
   picker.addEventListener('change', async () => {
     const files = [...picker.files];
     picker.value = '';
+    if (pickFor && pickFor.recipe) {
+      const r = state.recipes.find(x => x.id === pickFor.recipe);
+      if (!r || !files[0]) return;
+      try {
+        const { blob, a } = await R.shrinkPhoto(files[0]);
+        const id = uid();
+        await R.photos.put(id, blob);
+        if (r.photo) R.photos.del(r.photo.p);
+        r.photo = { p: id, a };
+        touch(r);
+        sfx('pop');
+        render();
+      } catch (e) {
+        toast('couldn’t add that photo');
+      }
+      return;
+    }
     const key = viewKey();
-    const at = photoAt;
+    const at = pickFor && pickFor.at;
     for (const [n, f] of files.entries()) {
       try {
         const { blob, a } = await R.shrinkPhoto(f);
@@ -956,14 +1034,397 @@
 
   const closeMonthSheet = () => { msheet = null; mday = null; mtext = null; mexp = null; };
 
+  // ---------- notebook: recipes, notes and the monthly pages ----------
+  // state.recipes = [{ id, name, photo: { p, a } | null, link, time, serves, ings: [row], steps: [row], notes, created, updated }]
+  //   a row is { id, t: text, d: ticked off while cooking }
+  // state.notes = [{ id, title, body, tint, created, updated }]
+
+  const BOOK = icon24('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z M5 17a3 3 0 0 1 3-3h11 M9 8h6"/>');
+  const LISTS = icon24('<path d="M9 6h11 M9 12h11 M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>');
+  const CLOCK = icon24('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>');
+  const PLATE = icon24('<path d="M3 11h18c0 5-4 8-9 8s-9-3-9-8z M12 8V6 M8.5 8.5 7.5 7 M15.5 8.5l1-1.5"/>');
+  const LINK = icon24('<path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1 M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/>');
+  const CART = icon24('<path d="M3 4h2.5l2 11h10l2-8H7 M9 19.5a1 1 0 1 0 0 .01 M17 19.5a1 1 0 1 0 0 .01"/>');
+  const BOOK_TABS = ['recipes', 'notes', 'months'];
+  const TINTS = ['paper', 'butter', 'peach', 'sage', 'sky'];
+
+  const routeId = prefix => {
+    const r = route();
+    return r.startsWith(prefix) ? r.slice(prefix.length) : null;
+  };
+  const currentRecipe = () => state.recipes.find(x => x.id === routeId('/recipe/'));
+  const currentNote = () => state.notes.find(x => x.id === routeId('/note/'));
+  const touch = x => { x.updated = Date.now(); save(); };
+  const shortDate = t => ymd(t) === ymd(Date.now()) ? 'today'
+    : `${new Date(t).getDate()} ${new Date(t).toLocaleString('en', { month: 'short' }).toLowerCase()}`;
+
+  // only http(s) links, and "bbcgoodfood.com/…" without the https:// still works
+  function linkUrl(s) {
+    s = (s || '').trim();
+    if (!s) return '';
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+    try {
+      const u = new URL(s);
+      return u.hostname.includes('.') ? u.href : '';
+    } catch (e) { return ''; }
+  }
+  const host = s => { try { return new URL(linkUrl(s)).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+
+  // pasting a whole recipe: strip bullets and "1." / "step 2:" off the front of each line
+  const cleanLine = s => s.replace(/^\s*(?:[-–•*·▢☐□✓✔]|\d+[.)](?!\d)|step\s*\d+\s*[:.)-]?)\s*/i, '').trim();
+
+  // drop recipes and notes that were started but never written in, and empty rows
+  function tidyBook() {
+    const before = state.recipes.length + state.notes.length;
+    let rows = 0;
+    state.recipes.forEach(r => ['ings', 'steps'].forEach(k => {
+      const kept = r[k].filter(x => x.t.trim());
+      rows += r[k].length - kept.length;
+      r[k] = kept;
+    }));
+    state.recipes = state.recipes.filter(r =>
+      r.name.trim() || r.photo || r.ings.length || r.steps.length || r.notes.trim() || r.link.trim());
+    state.notes = state.notes.filter(n => n.title.trim() || n.body.trim());
+    if (rows || state.recipes.length + state.notes.length !== before) save();
+  }
+
+  function monthKeys() {
+    const keys = new Set([ymd(Date.now()).slice(0, 7)]);
+    Object.entries(state.months).forEach(([k, m]) => {
+      if (m.hl || m.els.length || Object.keys(m.notes).length) keys.add(k);
+    });
+    Object.keys(state.log).forEach(k => keys.add(k.slice(0, 7)));
+    return [...keys].sort().reverse();
+  }
+
+  function recipeCard(r) {
+    const meta = [r.ings.length && `${r.ings.length} ingredient${r.ings.length === 1 ? '' : 's'}`, r.time.trim()].filter(Boolean).join(' · ');
+    const q = [r.name, r.notes, ...r.ings.map(x => x.t)].join(' ').toLowerCase();
+    return `
+      <a class="r-card" href="#/recipe/${r.id}" data-q="${esc(q)}">
+        <div class="r-thumb">${r.photo ? `<img data-photo="${esc(r.photo.p)}" alt="" draggable="false">` : DOODLES.recipe}</div>
+        <h3>${esc(r.name.trim() || 'untitled recipe')}</h3>
+        <small>${esc(meta || 'nothing here… yet')}</small>
+        ${host(r.link) ? `<small class="r-host">${LINK}${esc(host(r.link))}</small>` : ''}
+      </a>`;
+  }
+
+  const noteCard = n => `
+    <a class="n-card t-${n.tint}" href="#/note/${n.id}" data-q="${esc((n.title + ' ' + n.body).toLowerCase())}">
+      ${n.title.trim() ? `<h3>${esc(n.title)}</h3>` : ''}
+      ${n.body.trim() ? `<p>${esc(n.body.trim())}</p>` : ''}
+      <small>${shortDate(n.updated)}</small>
+    </a>`;
+
+  function monthCard(key) {
+    const [Y, M] = key.split('-').map(Number);
+    const m = monthOf(key);
+    const { ticked } = monthStats(key);
+    const photos = m.els.filter(e => e.type === 'photo').length;
+    const bits = [ticked && `${ticked} ticked`, photos && `${photos} photo${photos === 1 ? '' : 's'}`,
+      Object.keys(m.notes).length && `${Object.keys(m.notes).length} day notes`].filter(Boolean);
+    return `
+      <a class="card" href="#/month/${key}">
+        <div class="card-art">${DOODLES.month}</div>
+        <div class="card-body">
+          <h3>${monthName(Y, M)} <span class="b-year">${Y}</span></h3>
+          <small>${key === ymd(Date.now()).slice(0, 7) ? 'this month · ' : ''}${bits.join(' · ') || 'a blank page'}</small>
+        </div>
+      </a>`;
+  }
+
+  function bookView() {
+    const tab = BOOK_TABS.includes(state.bookTab) ? state.bookTab : 'recipes';
+    const recipes = [...state.recipes].sort((a, b) => b.created - a.created);
+    const notes = [...state.notes].sort((a, b) => b.updated - a.updated);
+    const empty = (art, words) => `<div class="empty b-empty"><div class="art">${art}</div><p>${words}</p></div>`;
+    const search = n => n > 3 ? `<input class="b-search" data-field="b-q" type="search" autocomplete="off" placeholder="search…" aria-label="Search ${tab}">` : '';
+
+    let body, add;
+    if (tab === 'recipes') {
+      body = recipes.length ? `${search(recipes.length)}<div class="r-grid">${recipes.map(recipeCard).join('')}</div>`
+        : empty(DOODLES.recipe, 'no recipes yet —<br>jot down a favourite ♡');
+      add = '<button class="pill grow" data-action="b-new-recipe">New recipe</button>';
+    } else if (tab === 'notes') {
+      body = notes.length ? `${search(notes.length)}<div class="n-grid">${notes.map(noteCard).join('')}</div>`
+        : empty(DOODLES.note, 'a blank page —<br>ideas, thoughts, anything ✿');
+      add = '<button class="pill grow" data-action="b-new-note">New note</button>';
+    } else {
+      body = `<div class="cards">${monthKeys().map(monthCard).join('')}</div>`;
+      add = '<a class="pill grow" href="#/month">This month</a>';
+    }
+
+    return `
+      <section class="screen">
+        <div class="home-head">
+          <div>
+            <p class="hello">recipes, notes &amp; months ✿</p>
+            <h1 class="home-title">your notebook</h1>
+          </div>
+          <span class="buddy">${mascot()}</span>
+        </div>
+        <div class="chips">
+          ${BOOK_TABS.map(id => `<button class="chip ${tab === id ? 'on' : ''}" data-action="b-tab" data-tab="${id}">${id}${
+            id === 'months' ? '' : `<i>${(id === 'recipes' ? recipes : notes).length}</i>`}</button>`).join('')}
+        </div>
+        ${body}
+        <p class="empty b-none" hidden>nothing matches</p>
+        <div class="spacer"></div>
+        <div class="dock dock-row">
+          <a class="pill ghost" href="#/">${LISTS}lists</a>
+          ${add}
+        </div>
+      </section>`;
+  }
+
+  function recipeView(r) {
+    const got = r.ings.filter(x => x.d).length;
+    const ticked = got + r.steps.filter(x => x.d).length;
+    const url = linkUrl(r.link);
+    const rows = (list, field) => r[list].map((x, i) => `
+      <li class="r-row ${x.d ? 'done' : ''} ${x.id === justAdded ? 'new' : ''}" data-row="${x.id}">
+        <button class="${list === 'ings' ? 'r-dot' : 'r-num'}" data-action="b-tick" data-list="${list}"
+          aria-label="${x.d ? 'Untick' : 'Tick'} ${esc(x.t)}">${list === 'ings' ? (x.d ? SMALL_TICK : '') : x.d ? SMALL_TICK : i + 1}</button>
+        ${list === 'ings'
+          ? `<input data-field="${field}" value="${esc(x.t)}" maxlength="120" autocomplete="off" aria-label="Ingredient">`
+          : `<textarea class="autogrow" data-field="${field}" rows="1" maxlength="600" aria-label="Step ${i + 1}">${esc(x.t)}</textarea>`}
+        <button class="icon-btn" data-action="b-row-del" data-list="${list}" aria-label="Remove">×</button>
+      </li>`).join('');
+    const addRow = (list, placeholder) => `
+      <form class="add-row" data-form="r-add" data-list="${list}">
+        <span class="add-plus" aria-hidden="true">+</span>
+        <input name="text" maxlength="${list === 'ings' ? 120 : 600}" autocomplete="off" placeholder="${placeholder}" aria-label="${placeholder}">
+      </form>`;
+
+    return `
+      <section class="screen recipe">
+        <div class="topbar">
+          <a class="text-btn" href="#/book">Back</a>
+          <span class="kind-tag">recipe</span>
+        </div>
+        ${r.photo
+          ? `<div class="r-photo"><img data-photo="${esc(r.photo.p)}" alt="" draggable="false" style="aspect-ratio:${Math.min(1.25, Math.max(.6, 1 / r.photo.a)).toFixed(3)}">
+              <div class="r-photo-btns"><button class="chip" data-action="b-photo">change</button><button class="chip" data-action="b-photo-del">remove</button></div></div>`
+          : `<button class="r-photo r-add-photo" data-action="b-photo">${ADD_ICONS.photo}<span>add a photo</span></button>`}
+        <input class="title-input" data-field="r-name" value="${esc(r.name)}" maxlength="60" placeholder="recipe name" aria-label="Recipe name">
+        <div class="r-meta">
+          <label class="r-chip">${CLOCK}<input data-field="r-time" value="${esc(r.time)}" maxlength="16" placeholder="time" aria-label="Time"></label>
+          <label class="r-chip">${PLATE}<input data-field="r-serves" value="${esc(r.serves)}" maxlength="16" placeholder="serves" aria-label="Serves"></label>
+        </div>
+        <div class="r-link">
+          ${LINK}<input data-field="r-link" type="url" inputmode="url" value="${esc(r.link)}" maxlength="500" autocomplete="off" placeholder="paste a link to the recipe…" aria-label="Link">
+          <a class="r-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${url ? '' : 'hidden'}>open ↗</a>
+        </div>
+
+        <div class="group">
+          <div class="group-head"><h2 class="r-h">ingredients</h2><span class="group-count">${got ? `${got}/${r.ings.length} got` : ''}</span></div>
+          <ul class="r-rows">${rows('ings', 'r-ing')}</ul>
+          ${addRow('ings', 'add an ingredient…')}
+          ${r.ings.length ? `<button class="text-btn r-shop" data-action="b-shop">${CART}add to a grocery list</button>` : ''}
+        </div>
+
+        <div class="group">
+          <div class="group-head"><h2 class="r-h">steps</h2></div>
+          <ol class="r-rows">${rows('steps', 'r-step')}</ol>
+          ${addRow('steps', 'add a step…')}
+        </div>
+
+        <div class="group">
+          <div class="group-head"><h2 class="r-h">notes</h2></div>
+          <textarea class="r-notes autogrow" data-field="r-notes" rows="2" maxlength="2000" placeholder="swaps, tips, who loved it…" aria-label="Notes">${esc(r.notes)}</textarea>
+        </div>
+
+        <div class="list-foot">
+          <button class="text-btn" data-action="b-untick" ${ticked ? '' : 'disabled style="opacity:.4"'}>Untick all</button>
+          <button class="text-btn danger" data-action="b-del-recipe">Delete recipe</button>
+        </div>
+      </section>
+      ${bsheet ? shopSheet() : ''}`;
+  }
+
+  const groceryLists = () => state.lists.filter(l => l.kind === 'grocery').sort((a, b) => b.created - a.created);
+
+  const shopSheet = () => `
+    <div class="sheet-wrap ${sheetFresh ? 'fresh' : ''}">
+      <div class="sheet-backdrop" data-action="b-close"></div>
+      <div class="sheet" role="dialog" aria-label="Add to a grocery list">
+        <h3>add to which list?</h3>
+        <div class="b-pick">
+          ${groceryLists().map(l => `<button class="b-pick-btn" data-action="b-to-list" data-id="${l.id}">${CART}<span>${esc(l.name)}</span></button>`).join('')}
+          <button class="b-pick-btn ghost" data-action="b-to-list" data-id="new"><span>+ a new grocery list</span></button>
+        </div>
+      </div>
+    </div>`;
+
+  // ingredients you haven't ticked ("got") go on the list, skipping ones already there
+  function addToGroceries(r, l) {
+    if (!l.sections.length) l.sections.push({ id: uid(), name: kindOf('grocery').group, items: [] });
+    const on = new Set(l.sections.flatMap(s => s.items).filter(i => !i.done).map(i => i.text.toLowerCase()));
+    const add = r.ings.filter(x => !x.d).map(x => x.t.trim()).filter(t => t && !on.has(t.toLowerCase()));
+    add.forEach(t => l.sections[0].items.push({ id: uid(), text: t.slice(0, 80), done: false }));
+    save();
+    sfx(add.length ? 'pop' : 'tap');
+    toast(add.length ? `added ${add.length} to ${l.name} ✿` : `already on ${l.name} ✿`);
+  }
+
+  function noteView(n) {
+    return `
+      <section class="screen note t-${n.tint}">
+        <div class="topbar">
+          <a class="text-btn" href="#/book">Back</a>
+          <span class="kind-tag">${n.body || n.title ? 'edited ' + shortDate(n.updated) : 'new note'}</span>
+        </div>
+        <input class="title-input" data-field="n-title" value="${esc(n.title)}" maxlength="60" placeholder="title" aria-label="Title">
+        <div class="n-tints">
+          ${TINTS.map(t => `<button class="n-tint t-${t} ${n.tint === t ? 'on' : ''}" data-action="b-tint" data-tint="${t}" aria-label="${t} paper"></button>`).join('')}
+        </div>
+        <textarea class="n-body autogrow" data-field="n-body" maxlength="20000" placeholder="write anything…" aria-label="Note">${esc(n.body)}</textarea>
+        <div class="list-foot">
+          <span></span>
+          <button class="text-btn danger" data-action="b-del-note">Delete note</button>
+        </div>
+      </section>`;
+  }
+
+  const grow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+
+  function addRows(r, list, lines) {
+    const made = lines.map(t => ({ id: uid(), t, d: false }));
+    r[list].push(...made);
+    touch(r);
+    sfx('pop');
+    justAdded = made.length === 1 ? made[0].id : null;
+    pendingFocus = `form[data-list="${list}"] input`;
+    render();
+  }
+
+  function bookAction(t) {
+    const r = currentRecipe();
+    const n = currentNote();
+    const rowOf = () => r && r[t.dataset.list].find(x => x.id === t.closest('[data-row]').dataset.row);
+
+    switch (t.dataset.action) {
+      case 'b-tab':
+        sfx('tap'); state.bookTab = t.dataset.tab; save(); render(); return;
+      case 'b-new-recipe': {
+        sfx('pop');
+        const x = { id: uid(), name: '', photo: null, link: '', time: '', serves: '', ings: [], steps: [], notes: '', created: Date.now(), updated: Date.now() };
+        state.recipes.push(x);
+        save();
+        pendingFocus = { sel: '[data-field="r-name"]' };
+        go('/recipe/' + x.id);
+        return;
+      }
+      case 'b-new-note': {
+        sfx('pop');
+        const x = { id: uid(), title: '', body: '', tint: 'paper', created: Date.now(), updated: Date.now() };
+        state.notes.push(x);
+        save();
+        pendingFocus = { sel: '.n-body' };
+        go('/note/' + x.id);
+        return;
+      }
+      case 'b-photo':
+        if (r) pickPhotos({ recipe: r.id });
+        return;
+      case 'b-photo-del':
+        if (!r || !r.photo) return;
+        R.photos.del(r.photo.p);
+        r.photo = null;
+        sfx('poof'); touch(r); render();
+        return;
+      case 'b-tick': {
+        const x = rowOf();
+        if (!x) return;
+        x.d = !x.d;
+        sfx(x.d ? 'scratch' : 'untick'); touch(r); render();
+        return;
+      }
+      case 'b-row-del': {
+        const x = rowOf();
+        if (!x) return;
+        r[t.dataset.list] = r[t.dataset.list].filter(y => y !== x);
+        sfx('poof'); touch(r); render();
+        return;
+      }
+      case 'b-untick':
+        r.ings.concat(r.steps).forEach(x => { x.d = false; });
+        sfx('untick'); touch(r); render();
+        return;
+      case 'b-del-recipe':
+        if ((r.name.trim() || r.ings.length || r.steps.length) && !confirm(`Delete “${r.name.trim() || 'this recipe'}”? This can’t be undone.`)) return;
+        if (r.photo) R.photos.del(r.photo.p);
+        state.recipes = state.recipes.filter(x => x !== r);
+        sfx('poof'); save(); go('/book');
+        return;
+      case 'b-shop': {
+        const lists = groceryLists();
+        if (lists.length === 1) { addToGroceries(r, lists[0]); return; }
+        sfx('tap'); bsheet = true; sheetFresh = true; render();
+        return;
+      }
+      case 'b-to-list': {
+        let l = state.lists.find(x => x.id === t.dataset.id);
+        if (!l) {
+          l = { id: uid(), name: 'Groceries', kind: 'grocery', created: Date.now(), sections: [{ id: uid(), name: kindOf('grocery').group, items: [] }] };
+          state.lists.push(l);
+        }
+        bsheet = false;
+        render();
+        addToGroceries(r, l);
+        return;
+      }
+      case 'b-close':
+        bsheet = false; render(); return;
+      case 'b-tint':
+        sfx('tap'); n.tint = t.dataset.tint; touch(n); render(); return;
+      case 'b-del-note':
+        if (n.body.trim() && !confirm('Delete this note? This can’t be undone.')) return;
+        state.notes = state.notes.filter(x => x !== n);
+        sfx('poof'); save(); go('/book');
+        return;
+    }
+  }
+
+  // Enter in an ingredient or step starts the next one; Backspace in an empty one removes it
+  function rowKey(el, key) {
+    const r = currentRecipe();
+    const list = el.dataset.field === 'r-ing' ? 'ings' : 'steps';
+    const i = r[list].findIndex(x => x.id === el.closest('[data-row]').dataset.row);
+    if (i < 0) return;
+    if (key === 'Enter') {
+      if (!el.value.trim() || i === r[list].length - 1) {
+        pendingFocus = `form[data-list="${list}"] input`;
+      } else {
+        const x = { id: uid(), t: '', d: false };
+        r[list].splice(i + 1, 0, x);
+        pendingFocus = { sel: `[data-row="${x.id}"] [data-field]` };
+      }
+    } else {
+      r[list].splice(i, 1);
+      const prev = r[list][i - 1];
+      pendingFocus = prev ? { sel: `[data-row="${prev.id}"] [data-field]`, end: true } : `form[data-list="${list}"] input`;
+    }
+    touch(r);
+    render();
+  }
+
   function render() {
     resetRepeats();
     const r = route();
     if (!r.startsWith('/list/')) sheet = null;
     if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); }
+    if (!r.startsWith('/recipe/')) bsheet = false;
+    if (!r.startsWith('/recipe/') && !r.startsWith('/note/')) tidyBook();
     let html;
     if (r === '/month' || r.startsWith('/month/')) {
       html = monthView(viewKey());
+    } else if (r === '/book') {
+      html = bookView();
+    } else if (r.startsWith('/recipe/') || r.startsWith('/note/')) {
+      const x = currentRecipe() || currentNote();
+      if (!x) { location.replace('#/book'); return; }
+      html = r.startsWith('/recipe/') ? recipeView(x) : noteView(x);
     } else if (r.startsWith('/list/')) {
       const l = currentList();
       html = l ? listView(l) : homeView();
@@ -984,6 +1445,7 @@
     app.innerHTML = html;
     app.querySelectorAll('img[data-photo]:not([src])').forEach(img =>
       R.photos.url(img.dataset.photo).then(u => { if (u) img.src = u; }).catch(() => {}));
+    app.querySelectorAll('textarea.autogrow').forEach(grow);
     justAdded = justToggled = null;
     sheetFresh = false;
 
@@ -999,6 +1461,7 @@
       if (el) {
         el.focus({ preventScroll: !changed && !pendingFocus.sel });
         if (pendingFocus.select) el.select();
+        if (pendingFocus.end) el.setSelectionRange(el.value.length, el.value.length);
       }
       pendingFocus = null;
     }
@@ -1286,6 +1749,7 @@
         break;
       default:
         if (t.dataset.action.startsWith('m-')) monthAction(t);
+        else if (t.dataset.action.startsWith('b-')) bookAction(t);
     }
   });
 
@@ -1310,9 +1774,8 @@
       case 'm-ticks':
         state.showTicks = !showTicks(); save(); sfx('tap'); break;
       case 'm-photo':
-        photoAt = msheet === 'day' ? dayCentre(grid(key), mday) : null;
+        pickPhotos({ at: msheet === 'day' ? dayCentre(grid(key), mday) : null });
         closeMonthSheet();
-        picker.click();
         break;
       case 'm-tray':
         sfx('tap'); msel = null; open('tray'); break;
@@ -1493,6 +1956,11 @@
       if (draft.name.trim()) { draft.step = 1; render(); }
       return;
     }
+    if (f.dataset.form === 'r-add') {
+      const text = f.elements.text.value.trim();
+      if (text) addRows(currentRecipe(), f.dataset.list, [text]);
+      return;
+    }
     if (f.dataset.form === 'add-item') {
       const list = currentList();
       const secId = f.closest('[data-sec]').dataset.sec;
@@ -1530,6 +1998,42 @@
     }
     if (f === 'm-text') { mtext.t = e.target.value; return; }
 
+    // notebook fields save as you type too
+    if (f === 'b-q') {
+      const q = e.target.value.trim().toLowerCase();
+      let shown = 0;
+      app.querySelectorAll('[data-q]').forEach(c => {
+        c.hidden = !!q && !c.dataset.q.includes(q);
+        if (!c.hidden) shown++;
+      });
+      app.querySelector('.b-none').hidden = shown > 0;
+      return;
+    }
+    if (e.target.classList.contains('autogrow')) grow(e.target);
+    const v = e.target.value;
+    if (f && f.startsWith('r-')) {
+      const r = currentRecipe();
+      if (!r) return;
+      if (f === 'r-ing' || f === 'r-step') {
+        const x = r[f === 'r-ing' ? 'ings' : 'steps'].find(y => y.id === e.target.closest('[data-row]').dataset.row);
+        if (x) x.t = v;
+      } else {
+        r[{ 'r-name': 'name', 'r-time': 'time', 'r-serves': 'serves', 'r-link': 'link', 'r-notes': 'notes' }[f]] = v;
+      }
+      if (f === 'r-link') {
+        const a = app.querySelector('.r-open');
+        a.hidden = !linkUrl(v);
+        a.href = linkUrl(v) || '#';
+      }
+      touch(r);
+      return;
+    }
+    if (f === 'n-title' || f === 'n-body') {
+      const n = currentNote();
+      if (n) { n[f === 'n-title' ? 'title' : 'body'] = v; touch(n); }
+      return;
+    }
+
     const n = e.target.name;
     if (n === 'name' && draft) {
       draft.name = e.target.value;
@@ -1558,7 +2062,26 @@
 
   // Enter in a heading input just commits the rename
   app.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.target.dataset.field && e.target.tagName === 'INPUT') e.target.blur();
+    const f = e.target.dataset.field;
+    if ((f === 'r-ing' || f === 'r-step') && !e.isComposing &&
+        ((e.key === 'Enter' && !e.shiftKey) || (e.key === 'Backspace' && !e.target.value))) {
+      e.preventDefault();
+      rowKey(e.target, e.key);
+      return;
+    }
+    if (e.key === 'Enter' && f && e.target.tagName === 'INPUT') e.target.blur();
+  });
+
+  // pasting a few lines into "add an ingredient / step" adds one row per line
+  app.addEventListener('paste', e => {
+    const form = e.target.closest('form[data-form="r-add"]');
+    if (!form || !e.clipboardData) return;
+    const lines = e.clipboardData.getData('text').split(/\r?\n/).map(cleanLine).filter(Boolean);
+    if (lines.length < 2) return;
+    e.preventDefault();
+    const list = form.dataset.list;
+    addRows(currentRecipe(), list, lines.map(t => t.slice(0, list === 'ings' ? 120 : 600)));
+    toast(`added ${lines.length} ${list === 'ings' ? 'ingredients' : 'steps'} ✿`);
   });
 
   document.addEventListener('keydown', e => {
@@ -1566,6 +2089,7 @@
     const egg = document.querySelector('.lero');
     if (egg) egg.remove();
     else if (sheet) { sheet = null; render(); }
+    else if (bsheet) { bsheet = false; render(); }
     else if (msheet) { closeMonthSheet(); render(); }
     else if (msel) { msel = null; render(); }
   });
@@ -1591,6 +2115,8 @@
 
   // older saves have no month data yet; seed the tick log from things already ticked
   if (!state.months) state.months = {};
+  if (!state.recipes) state.recipes = [];
+  if (!state.notes) state.notes = [];
   if (!state.log) {
     state.log = {};
     state.lists.forEach(l => l.sections.forEach(s => s.items.forEach(i => { if (i.done && i.doneAt) logTick(l, i); })));
