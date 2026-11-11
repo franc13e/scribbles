@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy · Scribbles</title>
+  <meta name="description" content="How Scribbles handles your data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap" rel="stylesheet">
+  <style>
+    :root { --paper: #FDF8F2; --ink: #1E1E1E; --soft: #4A4743; --muted: #9B948C; --line: #DCD3C8; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background-color: var(--paper);
+      background-image: radial-gradient(circle, rgba(30, 30, 30, .075) 1px, transparent 1.3px);
+      background-size: 22px 22px;
+      color: var(--ink);
+      font: 18px/1.5 'Patrick Hand', 'Comic Sans MS', cursive;
+    }
+    main { max-width: 640px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1, h2 { font-family: 'Gochi Hand', 'Comic Sans MS', cursive; font-weight: 400; line-height: 1.1; }
+    h1 { font-size: 44px; margin: 8px 0 4px; }
+    h2 { font-size: 26px; margin: 32px 0 6px; }
+    p, li { color: var(--soft); }
+    ul { padding-left: 22px; }
+    a { color: var(--ink); text-underline-offset: 3px; }
+    .date { color: var(--muted); margin: 0 0 24px; }
+    .back { display: inline-block; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">← back to Scribbles</a>
+    <h1>privacy ✿</h1>
+    <p class="date">last updated 11 November 2026</p>
+
+    <p>Scribbles is a small, personal app for lists, recipes, notes and monthly recaps. It’s built to keep your things yours. Here’s exactly what happens to them.</p>
+
+    <h2>if you don’t sign in</h2>
+    <p>Everything you make stays on your device, saved in your browser’s own storage. Nothing is sent anywhere. Clearing your browser’s data for the site removes it.</p>
+
+    <h2>if you sign in</h2>
+    <p>Signing in lets you see your things on all your devices. To do that, Scribbles keeps:</p>
+    <ul>
+      <li><b>your account:</b> your email address, and a password if you made one (stored scrambled, never readable). If you sign in with Google, Google tells Scribbles your email address and name, and that’s all.</li>
+      <li><b>what you make:</b> your lists, recipes, notes, monthly pages, photos and drawings, so they can sync.</li>
+    </ul>
+    <p>These are stored with <a href="https://supabase.com/privacy">Supabase</a>, the service that runs Scribbles’ database and storage. They’re locked so that only your account can read or change them.</p>
+
+    <h2>what Scribbles doesn’t do</h2>
+    <ul>
+      <li>no ads, and no tracking or analytics</li>
+      <li>your things are never sold, shared or used for anything except showing them back to you</li>
+      <li>no one else signing in to Scribbles can see your things</li>
+    </ul>
+
+    <h2>other services the app loads</h2>
+    <ul>
+      <li><b>Google Fonts</b> supplies the handwritten fonts, so Google sees that your device loaded them.</li>
+      <li>A hidden easter egg plays a YouTube video, using YouTube’s privacy-enhanced mode, only if you go looking for it.</li>
+    </ul>
+
+    <h2>deleting your things</h2>
+    <p>Anything you delete in the app is deleted from your account too. To delete your whole account and everything synced with it, <a href="https://github.com/franc13e/scribbles/issues">ask here</a> and it’ll be done.</p>
+
+    <h2>changes</h2>
+    <p>If this ever changes, this page will be updated and the date at the top will change with it.</p>
+  </main>
+</body>
+</html>

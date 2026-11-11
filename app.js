@@ -2015,6 +2015,7 @@
         </form>
         ${up ? '' : '<button class="text-btn" data-action="acct-forgot">forgot password?</button>'}
         <p class="acct-note">anything already on this device gets added to your account</p>
+        <p class="acct-note acct-legal"><a href="/privacy.html">privacy</a> · <a href="/terms.html">terms</a></p>
       </section>`;
   }
 

@@ -1,5 +1,5 @@
 // Keeps the app working offline: serve from cache straight away, refresh the cache in the background.
-const CACHE = 'scribble-v10';
+const CACHE = 'scribble-v11';
 const SHELL = [
   '/', '/index.html', '/style.css', '/recap.js', '/draw.js', '/sync.js', '/app.js', '/manifest.webmanifest',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png',
@@ -25,7 +25,9 @@ self.addEventListener('fetch', e => {
   if (url.origin !== location.origin && !fonts) return;
 
   e.respondWith(caches.open(CACHE).then(async cache => {
-    const key = req.mode === 'navigate' ? '/' : req;
+    // opening the app at any address gets the app; other pages (privacy, terms) are themselves
+    const page = req.mode === 'navigate' && !/\.html$/.test(url.pathname);
+    const key = page || url.pathname === '/index.html' ? '/' : req;
     const hit = await cache.match(key, { ignoreSearch: true });
     const fresh = fetch(req)
       .then(res => {

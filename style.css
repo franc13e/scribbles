@@ -1260,6 +1260,7 @@ button.cell:active { background: var(--blob); }
 .acct-email { font-family: var(--hand); font-size: 26px; margin: 2px 0 0; overflow-wrap: anywhere; }
 .acct-status { margin-top: 6px; }
 .acct-note { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+.acct-legal a { text-decoration: underline dotted; text-underline-offset: 3px; }
 
 /* ---------- drawing pad (draw.js) ---------- */
 
