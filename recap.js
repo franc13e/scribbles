@@ -335,7 +335,7 @@
       try { stickerImgs[e.id] = await loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)); } catch (err) { /* skip */ }
     }));
     const photoImgs = {};
-    await Promise.all(page.els.filter(e => e.type === 'photo').map(async e => {
+    await Promise.all(page.els.filter(e => e.type === 'photo' || e.type === 'draw').map(async e => {
       try { photoImgs[e.id] = await loadImage(await photos.url(e.p)); } catch (err) { /* skip */ }
     }));
 
@@ -349,6 +349,10 @@
         ctx.drawImage(stickerImgs[e.id], -w / 2, -h / 2, w, h);
       }
       if (e.type === 'text') drawText(ctx, e, e.s * u);
+      if (e.type === 'draw' && photoImgs[e.id]) {
+        const w = e.w * u, h = w * e.a;
+        ctx.drawImage(photoImgs[e.id], -w / 2, -h / 2, w, h);
+      }
       ctx.restore();
     });
 

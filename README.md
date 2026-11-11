@@ -39,11 +39,11 @@ A tiny, doodly app for lists, recipes, notes and monthly recaps. It's minimal, c
 - **Hand-drawn feel:** wobbly ink doodles with gentle idle animations, handwritten fonts (Gochi Hand and Patrick Hand), and cards taped on like paper scraps.
 - **A mochi mascot:** it blinks and sways, hops when you add something, and says something nice when you tap it.
 - **Repeating items:** tap the loop icon to repeat an item every day, week, 2 weeks or month, or only on certain days (like Mon · Thu). It unticks itself when it's due again. Only to-do and "anything" lists repeat.
-- **Monthly recap:** a doodly calendar page for each month. Write a little note on any day, add photos, stickers (doodles, scribbles, stamps, tape and arrows) and your own words, then drag, pinch and twist them into place. Zoom in with the + / − buttons or two fingers on the calendar to place things precisely. Days show how many things you ticked off, and tapping a day lists them. Save the page as an image or a PDF. It lives in the notebook.
+- **Monthly recap:** a doodly calendar page for each month. Write a little note on any day, add photos, stickers (doodles, scribbles, stamps, tape and arrows) and your own words, then drag, pinch and twist them into place. Draw your own doodles too. Zoom in with the + / − buttons or two fingers on the calendar to place things precisely. Days show how many things you ticked off, and tapping a day lists them. Save the page as an image or a PDF. It lives in the notebook.
 - **Notebook:** a second little app next to your lists, with three tabs:
   - **months:** every monthly recap page.
   - **recipes:** sorted into savoury and sweet. Each one has a photo (cropped square when you add it), time, servings, a link to the original, bullet-point ingredients, numbered steps and notes. Paste a whole ingredient list or method and each line becomes its own row. Tick off ingredients and steps while you cook, and send the rest to a grocery list in one tap.
-  - **notes:** a dotted or blank page for ideas and anything else, in five paper colours. Add photos in polaroid, taped, round or plain frames, and an optional date stamp. Search appears once you have a few.
+  - **notes:** a dotted or blank page for ideas and anything else, in five paper colours. Add photos in polaroid, taped, round or plain frames, drawings, and an optional date stamp. Search appears once you have a few.
 - **Cute sounds:** a paper-scratch when you tick something off, pops, a boing when you poke the mochi and a little chime when a list is done. All made in the browser, and you can mute them from the home screen.
 - **An easter egg:** try typing a certain song name 🎵
 - **Satisfying tick-offs:** a crayon scribble crosses each item out, with small sparkles. Finishing a list gets a bigger burst and a note from the mascot.
@@ -69,6 +69,7 @@ Plain HTML, CSS and JavaScript, with no framework and no build step.
 | `index.html` | Page shell, fonts and the wobbly-line SVG filter |
 | `style.css` | Look, layout and animations |
 | `app.js` | Doodles, mascot, screens and saving |
+| `draw.js` | The drawing pad: pen, marker and eraser, colours, undo, and Apple Pencil pressure |
 | `recap.js` | Month recap stickers, photo storage and the image / PDF export |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Home-screen install and offline support |
 

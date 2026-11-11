@@ -884,8 +884,8 @@ button.cell:active { background: var(--blob); }
 .m-words { font-family: var(--hand); font-size: 22px; resize: none; display: block; }
 .m-shapes { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 
-.m-preview { height: 34vh; display: grid; place-items: center; margin-bottom: 14px; }
-.m-preview img { max-width: 100%; max-height: 100%; border-radius: 4px; box-shadow: 0 8px 24px rgba(30, 30, 30, .14); transform: rotate(-1.2deg); }
+.m-preview { height: 34vh; display: grid; place-items: center; margin-bottom: 14px; overflow: hidden; }
+.m-preview img { max-width: 100%; max-height: 34vh; border-radius: 4px; box-shadow: 0 8px 24px rgba(30, 30, 30, .14); transform: rotate(-1.2deg); }
 .m-busy { color: var(--muted); text-align: center; }
 .m-busy .mascot { width: 56px; margin: 0 auto 6px; animation: bop .35s ease-in-out infinite alternate; }
 .seg { display: grid; grid-template-columns: 1fr 1fr; border: 1.5px solid var(--ink); border-radius: 999px; padding: 3px; }
@@ -1238,6 +1238,61 @@ button.cell:active { background: var(--blob); }
 .n-ph.sel { outline: 1.5px dashed var(--ink); outline-offset: 5px; }
 .n-ph-tools { margin: 10px 0 2px; }
 .n-thumb { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; margin-bottom: 6px; background: var(--blob); }
+
+/* ---------- drawing pad (draw.js) ---------- */
+
+.draw-wrap { position: fixed; inset: 0; z-index: 70; background: var(--paper); animation: fade .2s; }
+@media (min-width: 560px) { .draw-wrap { position: absolute; } } /* stay inside the phone frame */
+.draw-box {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+}
+@media (min-width: 560px) { .draw-box { padding-top: 44px; padding-bottom: 36px; } }
+.draw-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.draw-top h2 { font-size: 26px; }
+.draw-pad {
+  position: relative;
+  width: min(100%, 62vh);
+  aspect-ratio: 1;
+  margin: auto;
+  border: 1.5px solid var(--ink);
+  border-radius: 18px;
+  background-color: #FFFDF9;
+  background-image: radial-gradient(circle, rgba(30, 30, 30, .09) 1px, transparent 1.3px);
+  background-size: 5% 5%;
+  background-position: 2.5% 2.5%;
+  touch-action: none;
+  overflow: hidden;
+  cursor: crosshair;
+}
+.draw-pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.draw-tools { display: flex; align-items: center; gap: 6px; }
+.draw-gap { flex: 1; }
+.draw-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 52px;
+  padding: 6px 4px 3px;
+  border-radius: 14px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.draw-tool svg { width: 24px; height: 24px; }
+.draw-tool.on { background: var(--ink); color: var(--paper); }
+.draw-tool:disabled { opacity: .3; cursor: default; }
+.draw-colours { display: flex; justify-content: center; gap: 10px; }
+.draw-colour { width: 32px; height: 32px; border-radius: 50%; background: var(--c); border: 1.5px solid rgba(30, 30, 30, .25); }
+.draw-colour.on { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--ink); }
+
+/* drawings on the month page and in notes have no frame, just ink */
+.el-draw { width: var(--w); }
+.el-draw img, .n-ph.fr-ink img { display: block; width: 100%; background: none; -webkit-user-drag: none; }
+.n-ph.fr-ink img { max-height: none; }
 
 /* ---------- lero lero ---------- */
 

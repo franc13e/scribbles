@@ -674,8 +674,9 @@
   // ---------- monthly recap ----------
   // state.log['2026-11-12'] = [{ i: item id, t: text, l: list name }], filled in as things get ticked
   // state.months['2026-11'] = { notes: { 12: 'yoga' }, hl: 'highlights', els: [...] }
-  // an element is { id, type: 'photo' | 'sticker' | 'text', x, y (its centre), r (degrees), and
-  //   photo: p (photo id), a (height / width), w, frame · sticker: k (sticker id), w · text: t, shape, s (font size) }
+  // an element is { id, type: 'photo' | 'sticker' | 'text' | 'draw', x, y (its centre), r (degrees), and
+  //   photo: p (photo id), a (height / width), w, frame · sticker: k (sticker id), w · text: t, shape, s (font size)
+  //   draw: p (picture id), s (strokes id), a, f (share of the pad it fills), w }
   // positions and sizes are in board units: 1% of the board's width (see recap.js)
 
   const R = window.Recap;
@@ -742,6 +743,7 @@
     photo: icon24('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 16l5-5 4 4 3-3 6 5"/><circle cx="16" cy="9" r="1.5"/>'),
     sticker: icon24('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),
     text: icon24('<path d="M5 6h14 M12 6v13"/>'),
+    draw: icon24('<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z M14 7l3 3"/>'),
   };
 
   function elHtml(e) {
@@ -752,6 +754,10 @@
       cls = 'fr-' + e.frame;
       size = `--w:${e.w}cqw;`;
       inner = `<img data-photo="${esc(e.p)}" ${src ? `src="${src}"` : ''} alt="" draggable="false" style="aspect-ratio:${e.frame === 'round' ? 1 : (1 / e.a).toFixed(4)}">`;
+    } else if (e.type === 'draw') {
+      const src = R.photos.cached(e.p);
+      size = `--w:${e.w}cqw;`;
+      inner = `<img data-photo="${esc(e.p)}" ${src ? `src="${src}"` : ''} alt="" draggable="false" style="aspect-ratio:${(1 / e.a).toFixed(4)}">`;
     } else if (e.type === 'sticker') {
       const s = R.stickerById(e.k);
       size = `--w:${e.w}cqw;`;
@@ -790,12 +796,13 @@
       dock = `<div class="m-tools">
         ${sel.type === 'photo' ? FRAMES.map(f => `<button class="chip ${sel.frame === f ? 'on' : ''}" data-action="m-frame" data-frame="${f}">${f}</button>`).join('') : ''}
         ${sel.type === 'text' ? '<button class="chip" data-action="m-edit-text">edit words</button>' : ''}
+        ${sel.type === 'draw' ? '<button class="chip" data-action="m-edit-draw">edit drawing</button>' : ''}
         <button class="chip" data-action="m-front">to front</button>
         <button class="chip" data-action="m-del">remove</button>
       </div>`;
     } else {
-      dock = ['photo', 'sticker', 'text'].map(a =>
-        `<button class="pill ghost" data-action="m-${a === 'sticker' ? 'tray' : a === 'text' ? 'words' : 'photo'}">${ADD_ICONS[a]}${a}</button>`).join('');
+      dock = [['photo', 'm-photo'], ['sticker', 'm-tray'], ['text', 'm-words'], ['draw', 'm-draw']].map(([a, action]) =>
+        `<button class="pill ghost" data-action="${action}">${ADD_ICONS[a]}${a}</button>`).join('');
     }
 
     return `
@@ -945,6 +952,28 @@
     msel = e.id;
     save();
     sfx('pop');
+  }
+
+  // opens the drawing pad (with an earlier drawing's strokes when editing one) and stores the result:
+  // the picture under p, its strokes under s, both in the photo store; null when cancelled or left empty
+  async function drawSomething(old) {
+    let strokes = [];
+    if (old && old.s) {
+      try { strokes = await (await fetch(await R.photos.url(old.s))).json(); } catch (e) { /* draw fresh */ }
+    }
+    const res = await window.Draw.open({ strokes });
+    if (!res) return null;
+    const p = uid(), s = uid();
+    try {
+      await R.photos.put(p, res.blob);
+      await R.photos.put(s, new Blob([JSON.stringify(res.strokes)], { type: 'application/json' }));
+    } catch (e) {
+      toast('couldn’t save that drawing');
+      return null;
+    }
+    if (old) { R.photos.del(old.p); if (old.s) R.photos.del(old.s); }
+    sfx('pop');
+    return { p, s, a: res.a, f: res.f };
   }
 
   // photos come from a file picker that lives outside #app, so re-rendering doesn't lose it
@@ -1448,8 +1477,10 @@
       Y === new Date().getFullYear() ? '' : ' ' + Y}`.toLowerCase();
   }
 
+  // photos and drawings; a drawing (frame 'ink') sits straight on the paper at the size it was drawn
   const notePhoto = (x, i) => `
-    <button class="n-ph fr-${x.frame} ${x.id === nsel ? 'sel' : ''}" data-action="b-nphoto" data-id="${x.id}" style="--r:${i % 2 ? 2.5 : -2}deg" aria-label="Photo">
+    <button class="n-ph fr-${x.frame} ${x.id === nsel ? 'sel' : ''}" data-action="b-nphoto" data-id="${x.id}"
+      style="--r:${x.frame === 'ink' ? 0 : i % 2 ? 2.5 : -2}deg;${x.frame === 'ink' ? `--w:${Math.max(70, Math.round(x.f * 330))}px` : ''}" aria-label="${x.frame === 'ink' ? 'Drawing' : 'Photo'}">
       <img data-photo="${esc(x.p)}" alt="" draggable="false" style="aspect-ratio:${x.frame === 'round' ? 1 : (1 / x.a).toFixed(4)}">
     </button>`;
 
@@ -1471,7 +1502,8 @@
         </div>
         ${n.photos.length ? `<div class="n-photos ${n.photos.length === 1 ? 'one' : ''}">${n.photos.map(notePhoto).join('')}</div>` : ''}
         ${sel ? `<div class="m-tools n-ph-tools">
-          ${FRAMES.map(f => `<button class="chip ${sel.frame === f ? 'on' : ''}" data-action="b-nframe" data-frame="${f}">${f}</button>`).join('')}
+          ${sel.frame === 'ink' ? '<button class="chip" data-action="b-ndraw-edit">edit drawing</button>'
+            : FRAMES.map(f => `<button class="chip ${sel.frame === f ? 'on' : ''}" data-action="b-nframe" data-frame="${f}">${f}</button>`).join('')}
           <button class="chip" data-action="b-nphoto-del">remove</button>
         </div>` : ''}
         <textarea class="n-body autogrow" data-field="n-body" maxlength="20000" placeholder="write anything…" aria-label="Note">${esc(n.body)}</textarea>
@@ -1481,7 +1513,8 @@
         </div>
         <div class="dock m-dock">
           <button class="pill ghost" data-action="b-nphoto-add">${ADD_ICONS.photo}photo</button>
-          <button class="pill ghost" data-action="b-stamp">${CAL}${n.stamp ? 'no date' : 'date stamp'}</button>
+          <button class="pill ghost" data-action="b-ndraw">${ADD_ICONS.draw}draw</button>
+          <button class="pill ghost" data-action="b-stamp">${CAL}${n.stamp ? 'no date' : 'date'}</button>
         </div>
       </section>`;
   }
@@ -1597,6 +1630,28 @@
         sfx(n.stamp ? 'poof' : 'pop'); n.stamp = n.stamp ? null : ymd(Date.now()); touch(n); render(); return;
       case 'b-nphoto-add':
         nsel = null; pickPhotos({ note: n.id }); return;
+      case 'b-ndraw':
+        sfx('tap');
+        nsel = null;
+        render();
+        drawSomething(null).then(d => {
+          if (!d) return;
+          n.photos.push({ id: uid(), frame: 'ink', ...d });
+          touch(n);
+          render();
+        });
+        return;
+      case 'b-ndraw-edit': {
+        const x = n.photos.find(y => y.id === nsel);
+        if (!x) return;
+        drawSomething(x).then(d => {
+          if (!d) return;
+          Object.assign(x, d);
+          touch(n);
+          render();
+        });
+        return;
+      }
       case 'b-nphoto':
         sfx('tap'); nsel = nsel === t.dataset.id ? null : t.dataset.id; render(); return;
       case 'b-nframe': {
@@ -1608,6 +1663,7 @@
         const x = n.photos.find(y => y.id === nsel);
         if (!x) return;
         R.photos.del(x.p);
+        if (x.s) R.photos.del(x.s);
         n.photos = n.photos.filter(y => y !== x);
         nsel = null;
         sfx('poof'); touch(n); render();
@@ -1617,7 +1673,7 @@
         sfx('tap'); n.tint = t.dataset.tint; touch(n); render(); return;
       case 'b-del-note':
         if ((n.body.trim() || n.photos.length) && !confirm('Delete this note? This can’t be undone.')) return;
-        n.photos.forEach(x => R.photos.del(x.p));
+        n.photos.forEach(x => { R.photos.del(x.p); if (x.s) R.photos.del(x.s); });
         state.notes = state.notes.filter(x => x !== n);
         sfx('poof'); save(); go('/book');
         return;
@@ -2031,6 +2087,28 @@
         render();
         return;
       }
+      case 'm-draw':
+        sfx('tap');
+        msel = null;
+        render();
+        drawSomething(null).then(d => {
+          if (!d) return;
+          addEl(key, { type: 'draw', ...d, w: Math.max(8, Math.round(d.f * 60)) });
+          render();
+        });
+        return;
+      case 'm-edit-draw': {
+        if (!sel) return;
+        const e = sel;
+        drawSomething(e).then(d => {
+          if (!d) return;
+          e.w = Math.max(5, Math.round(e.w * d.f / (e.f || d.f) * 10) / 10); // the same ink, the same size
+          Object.assign(e, d);
+          save();
+          render();
+        });
+        return;
+      }
       case 'm-ticks':
         state.showTicks = !showTicks(); save(); sfx('tap'); break;
       case 'm-photo':
@@ -2083,7 +2161,8 @@
         break;
       case 'm-del':
         if (!sel) return;
-        if (sel.type === 'photo') R.photos.del(sel.p);
+        if (sel.type === 'photo' || sel.type === 'draw') R.photos.del(sel.p);
+        if (sel.type === 'draw') R.photos.del(sel.s);
         m.els = m.els.filter(e => e !== sel);
         msel = null;
         sfx('poof'); save();
