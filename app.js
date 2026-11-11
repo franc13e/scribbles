@@ -135,10 +135,10 @@
 
     sync: svg(`
       <g ${S}>
-        <rect x="30" y="44" width="58" height="96" rx="10"/>
-        <path d="M52 128 h14"/>
-        <rect x="128" y="56" width="68" height="84" rx="10"/>
-        <path d="M152 128 h20"/>
+        <path d="M40 45 C55 43 68 44 79 44 Q88 44 88 54 C89 80 87 108 88 130 Q88 140 78 140 C64 141 52 139 40 140 Q30 140 30 130 C29 104 31 78 30 55 Q30 45 40 45 Z"/>
+        <path d="M52 128 q7 1 14 0"/>
+        <path d="M138 57 C156 55 172 57 186 56 Q196 56 196 66 C197 88 195 110 196 130 Q196 140 186 140 C170 141 154 139 138 140 Q128 140 128 130 C127 108 129 86 128 66 Q128 57 138 57 Z"/>
+        <path d="M152 128 q10 1 20 0"/>
         <g class="bob">
           <path d="M98 70 C112 54 120 54 132 64"/>
           <path d="M124 56 l9 8 l-11 4"/>
@@ -147,7 +147,7 @@
           <path d="M132 112 C118 128 108 128 96 118"/>
           <path d="M104 126 l-9 -8 l11 -4"/>
         </g>
-        <path d="M48 76 h22 M48 90 h16 M146 84 h32 M146 98 h24"/>
+        <path d="M48 76 q11 -1 22 0 M48 90 q8 1 16 0 M146 84 q16 -1 32 0 M146 98 q12 1 24 0"/>
         <path class="tw" d="M100 22 l8 8 M108 22 l-8 8"/>
         <path class="tw d1" d="M196 30 v14 M189 37 h14"/>
       </g>
@@ -158,9 +158,9 @@
 
     recipe: svg(`
       <g ${S}>
-        <path d="M52 94 H168 V122 C168 140 156 150 140 150 H80 C64 150 52 140 52 122 Z"/>
-        <path d="M42 94 H178"/>
-        <path d="M52 106 H36 M168 106 H184"/>
+        <path d="M52 95 C90 93 130 96 168 94 C169 104 168 113 168 122 C168 140 156 150 140 150 C120 151 100 149 80 150 C64 150 52 140 52 122 C52 113 51 104 52 95 Z"/>
+        <path d="M42 95 C90 92 132 96 178 93"/>
+        <path d="M52 106 q-8 1 -16 0 M168 106 q8 -1 16 0"/>
         <path d="M94 82 c0 -8 32 -8 32 0"/>
         <g class="float">
           <path d="M80 70 c-8 -10 8 -16 0 -28"/>
@@ -179,9 +179,9 @@
 
     note: svg(`
       <g ${S}>
-        <rect x="58" y="28" width="98" height="124" rx="8"/>
-        <path d="M48 46 h18 M48 68 h18 M48 90 h18 M48 112 h18 M48 134 h18"/>
-        <path d="M80 60 h56 M80 82 h48 M80 104 h54 M80 126 h30"/>
+        <path d="M66 29 C94 27 122 29 148 28 Q156 28 156 37 C157 72 155 108 156 143 Q156 152 147 152 C118 153 92 151 66 152 Q58 152 58 144 C57 108 59 72 58 37 Q58 29 66 29 Z"/>
+        <path d="M48 46 q9 -1 18 0 M48 68 q9 1 18 0 M48 90 q9 -1 18 0 M48 112 q9 1 18 0 M48 134 q9 -1 18 0"/>
+        <path d="M80 60 q28 -2 56 0 M80 82 q24 2 48 0 M80 104 q27 -2 54 0 M80 126 q15 1 30 0"/>
         <g class="bob">
           <path d="M178 36 l16 10 l-42 72 l-16 -10 z"/>
           <path d="M136 108 l-4 22 l20 -12"/>
@@ -197,8 +197,8 @@
 
     month: svg(`
       <g ${S}>
-        <rect x="46" y="40" width="128" height="110" rx="10"/>
-        <path d="M46 70 H174 M84 28 v24 M136 28 v24"/>
+        <path d="M56 41 C92 39 130 42 164 40 Q174 40 174 50 C175 80 173 112 174 140 Q174 150 164 150 C128 151 92 149 56 150 Q46 150 46 140 C45 110 47 80 46 50 Q46 41 56 41 Z"/>
+        <path d="M46 70 C88 68 132 71 174 69 M84 28 q1 12 0 24 M136 28 q-1 12 0 24"/>
         <path class="tw" d="M22 52 l8 8 M30 52 l-8 8"/>
         <path class="tw d1" d="M194 112 v14 M187 119 h14"/>
       </g>
@@ -504,7 +504,7 @@
 
     let body;
     if (!lists.length) {
-      body = `<div class="empty">${mascot()}<p>no lists yet —<br>let’s make one ♡</p></div>`;
+      body = `<div class="empty">${mascot()}<p>no lists yet<br>let’s make one ♡</p></div>`;
     } else if (filter === 'all') {
       body = KINDS.filter(k => count(k.id)).map(k => `
         <h2 class="group-label">${k.label}</h2>
@@ -1236,14 +1236,14 @@
       const shown = fl === 'all' ? recipes : recipes.filter(r => r.flavour === fl);
       const sub = ['all', ...FLAVOURS].map(f => `<button class="${fl === f ? 'on' : ''}" data-action="b-flavour" data-f="${f}">${f}<i>${
         f === 'all' ? recipes.length : recipes.filter(r => r.flavour === f).length}</i></button>`).join('');
-      body = !recipes.length ? empty(DOODLES.recipe, 'no recipes yet —<br>jot down a favourite ♡')
+      body = !recipes.length ? empty(DOODLES.recipe, 'no recipes yet<br>jot down a favourite ♡')
         : `<div class="b-sub">${sub}</div>${search(recipes.length)}${shown.length
           ? `<div class="r-grid">${shown.map(recipeCard).join('')}</div>`
-          : `<p class="empty">no ${fl} recipes yet —<br>pick savoury or sweet on a recipe</p>`}`;
+          : `<p class="empty">no ${fl} recipes yet<br>pick savoury or sweet on a recipe</p>`}`;
       add = '<button class="pill grow" data-action="b-new-recipe">New recipe</button>';
     } else if (tab === 'notes') {
       body = notes.length ? `${search(notes.length)}<div class="n-grid">${notes.map(noteCard).join('')}</div>`
-        : empty(DOODLES.note, 'a blank page —<br>ideas, thoughts, anything ✿');
+        : empty(DOODLES.note, 'a blank page<br>ideas, thoughts, anything ✿');
       add = '<button class="pill grow" data-action="b-new-note">New note</button>';
     } else {
       body = `<div class="cards">${monthKeys().map(monthCard).join('')}</div>`;
