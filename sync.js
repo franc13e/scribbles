@@ -35,6 +35,8 @@
     h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
   }
+  // the server's timestamps have microseconds, which older Safari can't parse; milliseconds are plenty
+  const time = s => Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1'));
   const hashOf = d => d === undefined ? undefined : hash(JSON.stringify(d));
 
   function setStatus(s) {
@@ -186,14 +188,14 @@
 
       // 2. what other devices changed (a few seconds of overlap, in case changes landed out of order)
       let q = '/rest/v1/items?select=kind,id,data,updated,deleted,synced_at&order=synced_at.asc&limit=5000';
-      if (meta.cursor) q += '&synced_at=gt.' + encodeURIComponent(new Date(Date.parse(meta.cursor) - 5000).toISOString());
+      if (meta.cursor) q += '&synced_at=gt.' + encodeURIComponent(new Date(time(meta.cursor) - 5000).toISOString());
       const rows = await (await api(q)).json();
       let changed = false;
       for (const row of rows) {
         const k = row.kind + ':' + row.id;
         const theirs = row.deleted ? undefined : row.data;
         const th = hashOf(theirs);
-        if (!meta.cursor || Date.parse(row.synced_at) > Date.parse(meta.cursor)) meta.cursor = row.synced_at;
+        if (!meta.cursor || time(row.synced_at) > time(meta.cursor)) meta.cursor = row.synced_at;
         if (th === meta.base[k] && !meta.dirty[k]) continue; // nothing new, usually our own push coming back
         const mine = docs.get(k);
         if (!meta.dirty[k]) {
