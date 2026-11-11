@@ -133,6 +133,29 @@
         <path d="M120 160 l12 2 M54 162 l-10 2 M200 150 l8 6"/>
       </g>`),
 
+    sync: svg(`
+      <g ${S}>
+        <rect x="30" y="44" width="58" height="96" rx="10"/>
+        <path d="M52 128 h14"/>
+        <rect x="128" y="56" width="68" height="84" rx="10"/>
+        <path d="M152 128 h20"/>
+        <g class="bob">
+          <path d="M98 70 C112 54 120 54 132 64"/>
+          <path d="M124 56 l9 8 l-11 4"/>
+        </g>
+        <g class="bob" style="animation-delay:-1.2s">
+          <path d="M132 112 C118 128 108 128 96 118"/>
+          <path d="M104 126 l-9 -8 l11 -4"/>
+        </g>
+        <path d="M48 76 h22 M48 90 h16 M146 84 h32 M146 98 h24"/>
+        <path class="tw" d="M100 22 l8 8 M108 22 l-8 8"/>
+        <path class="tw d1" d="M196 30 v14 M189 37 h14"/>
+      </g>
+      <g fill="currentColor">
+        <path class="beat" d="M112 92 c-4 -7 -14 -3 -9 5 l9 9 l9 -9 c5 -8 -5 -12 -9 -5z"/>
+        <circle class="tw d2" cx="18" cy="30" r="3"/><circle cx="206" cy="150" r="3"/><circle cx="20" cy="156" r="2.5"/>
+      </g>`),
+
     recipe: svg(`
       <g ${S}>
         <path d="M52 94 H168 V122 C168 140 156 150 140 150 H80 C64 150 52 140 52 122 Z"/>
@@ -329,8 +352,12 @@
     } catch (e) { /* fall through */ }
     return { seen: false, user: '', lists: [], log: {}, months: {}, recipes: [], notes: [] };
   }
-  function save() {
+  function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+  }
+  function save() {
+    persist();
+    if (window.Sync) Sync.schedule();
   }
 
   let state = load();
@@ -387,6 +414,7 @@
         <p class="sub">Groceries, wishlists, chores — jot them down before you forget</p>
         <div class="spacer"></div>
         <button class="pill wide" data-action="start">Continue</button>
+        <a class="text-btn" href="#/account" style="margin-top:8px">already using scribbles? sign in</a>
       </section>`;
   }
 
@@ -495,6 +523,7 @@
             <div class="hello-row">
               <button class="hello" data-action="edit-name">${hello}${state.user ? ', ' + esc(state.user) : ''} ✿</button>
               <button class="icon-btn snd" data-action="sound" aria-label="Sound ${state.sound === false ? 'off' : 'on'}" title="Sound">${state.sound === false ? SPEAKER_OFF : SPEAKER_ON}</button>
+              <a class="icon-btn snd ${Sync.user() ? 'on' : ''}" href="#/account" aria-label="${Sync.user() ? 'Synced' : 'Sign in to sync'}" title="Sync">${Sync.user() ? CLOUD_ON : CLOUD}</a>
             </div>
             <h1 class="home-title">your lists</h1>
           </div>
@@ -1730,6 +1759,8 @@
       html = wizardView();
     } else if (r === '/hi') {
       html = nameView();
+    } else if (r === '/account') {
+      html = accountView();
     } else {
       draft = null;
       html = !state.seen && !state.lists.length ? welcomeView() : homeView();
@@ -1908,6 +1939,178 @@
 
   const afterName = () => go(state.lists.length ? '/' : '/new');
 
+  // ---------- signing in and syncing (see sync.js) ----------
+
+  const CLOUD_PATH = '<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 11.6 3.3 3.3 0 0 0 7 18z"/>';
+  const CLOUD = icon24(CLOUD_PATH);
+  const CLOUD_ON = icon24(CLOUD_PATH + '<path d="M9.5 14l2 2 3.5-3.5"/>');
+
+  // acct.mode: 'in' | 'up' (new account) | 'reset' (after a password-reset link)
+  let acct = { mode: 'in', email: '', pw: '', busy: false, err: '', msg: '' };
+  let remoteWaiting = false; // other devices' changes arrived while you were typing
+
+  const ago = t => {
+    const m = Math.round((Date.now() - t) / 60000);
+    return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : shortDate(t);
+  };
+
+  function syncLine() {
+    const { status, at } = Sync.state();
+    if (status === 'syncing') return 'syncing…';
+    if (status === 'offline') return 'offline — it’ll sync when you’re back';
+    if (status === 'error') return 'couldn’t sync just now, trying again soon';
+    return at ? `synced ${ago(at)} ✿` : 'getting ready…';
+  }
+
+  function accountView() {
+    const u = Sync.user();
+    const head = `
+      <div class="topbar"><a class="text-btn" href="#/">Back</a><span class="kind-tag">sync</span></div>
+      <div class="art acct-art">${DOODLES.sync}</div>`;
+    if (u && acct.mode !== 'reset') {
+      return `
+        <section class="screen center acct">
+          ${head}
+          <h1 class="headline"><small>signed in as</small></h1>
+          <p class="acct-email">${esc(u.email)}</p>
+          <p class="sub acct-status">${syncLine()}</p>
+          <div class="spacer"></div>
+          <button class="pill wide ghost" data-action="acct-sync">sync now</button>
+          <button class="text-btn danger" data-action="acct-out" style="margin-top:8px">Sign out</button>
+          <p class="acct-note">signing out keeps everything on this device</p>
+        </section>`;
+    }
+    if (acct.mode === 'reset') {
+      return `
+        <section class="screen center acct">
+          ${head}
+          <h1 class="headline"><small>almost there</small>new password</h1>
+          <form data-form="acct" class="acct-form">
+            <input class="field" type="password" name="pw" autocomplete="new-password" minlength="6" placeholder="new password" aria-label="New password" value="${esc(acct.pw)}">
+            ${acct.err ? `<p class="acct-err">${esc(acct.err)}</p>` : ''}
+            <button class="pill wide" ${acct.busy ? 'disabled' : ''}>save password</button>
+          </form>
+        </section>`;
+    }
+    const up = acct.mode === 'up';
+    return `
+      <section class="screen center acct">
+        ${head}
+        <h1 class="headline"><small>keep everything</small>in sync</h1>
+        <p class="sub">your lists, recipes, notes and months on all your devices</p>
+        <div class="seg acct-seg">
+          <button type="button" class="${up ? '' : 'on'}" data-action="acct-mode" data-mode="in">sign in</button>
+          <button type="button" class="${up ? 'on' : ''}" data-action="acct-mode" data-mode="up">new account</button>
+        </div>
+        <form data-form="acct" class="acct-form">
+          <input class="field" type="email" name="email" autocomplete="email" inputmode="email" placeholder="email" aria-label="Email" value="${esc(acct.email)}">
+          <input class="field" type="password" name="pw" autocomplete="${up ? 'new-password' : 'current-password'}" minlength="6"
+            placeholder="${up ? 'make a password (6+ letters)' : 'password'}" aria-label="Password" value="${esc(acct.pw)}">
+          ${acct.err ? `<p class="acct-err">${esc(acct.err)}</p>` : ''}
+          ${acct.msg ? `<p class="acct-msg">${esc(acct.msg)}</p>` : ''}
+          <button class="pill wide" ${acct.busy ? 'disabled' : ''}>${acct.busy ? 'one sec…' : up ? 'create account' : 'sign in'}</button>
+        </form>
+        ${up ? '' : '<button class="text-btn" data-action="acct-forgot">forgot password?</button>'}
+        <p class="acct-note">anything already on this device gets added to your account</p>
+      </section>`;
+  }
+
+  // Supabase's messages, in the app's voice
+  const nice = e => {
+    const m = (e && e.message || '').toLowerCase();
+    if (!navigator.onLine) return 'you’re offline — try again when you’re connected';
+    if (m.includes('invalid login')) return 'that email and password don’t match';
+    if (m.includes('already registered') || m.includes('already been registered')) return 'that email already has an account — sign in instead';
+    if (m.includes('password')) return 'the password needs at least 6 letters';
+    if (m.includes('email') && m.includes('invalid')) return 'that email doesn’t look right';
+    if (m.includes('rate limit') || m.includes('security purposes')) return 'too many tries — wait a minute and try again';
+    if (e && e.confirm) return e.message;
+    return 'something went wrong — try again';
+  };
+
+  async function submitAccount() {
+    const email = acct.email.trim(), pw = acct.pw;
+    if (acct.mode !== 'reset' && !email) { acct.err = 'add your email'; render(); return; }
+    if (pw.length < 6) { acct.err = 'the password needs at least 6 letters'; render(); return; }
+    Object.assign(acct, { busy: true, err: '', msg: '' });
+    render();
+    try {
+      if (acct.mode === 'reset') await Sync.setPassword(pw);
+      else if (acct.mode === 'up') await Sync.signUp(email, pw);
+      else await Sync.signIn(email, pw);
+      acct = { mode: 'in', email: '', pw: '', busy: false, err: '', msg: '' };
+      sfx('chime');
+      toast('signed in ✿');
+    } catch (e) {
+      Object.assign(acct, { busy: false, err: nice(e) });
+    }
+    render();
+  }
+
+  // ---------- what sync.js sees: every list, recipe, note, month, day of ticks and your settings ----------
+
+  const PREFS = ['user', 'sound', 'showTicks', 'bookTab', 'flavour'];
+
+  function syncDocs() {
+    const m = new Map();
+    state.lists.forEach(l => m.set('list:' + l.id, l));
+    state.recipes.forEach(r => m.set('recipe:' + r.id, r));
+    state.notes.forEach(n => m.set('note:' + n.id, n));
+    Object.entries(state.months).forEach(([k, v]) => m.set('month:' + k, v));
+    Object.entries(state.log).forEach(([k, v]) => m.set('log:' + k, v));
+    const prefs = {};
+    PREFS.forEach(k => { if (state[k] !== undefined) prefs[k] = state[k]; });
+    m.set('prefs:me', prefs);
+    return m;
+  }
+
+  function syncApply(key, data) {
+    const i = key.indexOf(':');
+    const kind = key.slice(0, i), id = key.slice(i + 1);
+    const arr = { list: 'lists', recipe: 'recipes', note: 'notes' }[kind];
+    if (kind === 'note' && data && !data.photos) data.photos = [];
+    if (arr) {
+      const at = state[arr].findIndex(x => x.id === id);
+      if (data === null) { if (at >= 0) state[arr].splice(at, 1); }
+      else if (at >= 0) state[arr][at] = data;
+      else state[arr].push(data);
+    } else if (kind === 'month' || kind === 'log') {
+      const box = kind === 'month' ? state.months : state.log;
+      if (data === null) delete box[id]; else box[id] = data;
+    } else if (kind === 'prefs' && data) {
+      PREFS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
+    }
+  }
+
+  function syncChanged() {
+    if (state.user || state.lists.length || state.recipes.length || state.notes.length) state.seen = true;
+    persist();
+    // don't redraw under someone mid-typing or mid-drag; catch up when they're done
+    const a = document.activeElement;
+    if ((a && app.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName)) || gest || cropGest) { remoteWaiting = true; return; }
+    render();
+  }
+  app.addEventListener('focusout', () => setTimeout(() => {
+    const a = document.activeElement;
+    if (remoteWaiting && !(a && app.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName))) { remoteWaiting = false; render(); }
+  }, 350));
+
+  function syncPhotoIds() {
+    const ids = new Set();
+    state.recipes.forEach(r => { if (r.photo) { ids.add(r.photo.p); if (r.photo.o) ids.add(r.photo.o); } });
+    state.notes.forEach(n => n.photos.forEach(x => { ids.add(x.p); if (x.s) ids.add(x.s); }));
+    Object.values(state.months).forEach(m => m.els.forEach(e => {
+      if (e.type === 'photo' || e.type === 'draw') ids.add(e.p);
+      if (e.type === 'draw' && e.s) ids.add(e.s);
+    }));
+    return ids;
+  }
+
+  Sync.onStatus(() => {
+    const a = document.activeElement;
+    if (route() === '/account' && !(a && app.contains(a) && a.tagName === 'INPUT')) render();
+  });
+
   // ---------- events ----------
 
   app.addEventListener('click', e => {
@@ -1925,6 +2128,23 @@
     const item = sec && itemEl ? sec.items.find(i => i.id === itemEl.dataset.item) : null;
 
     switch (t.dataset.action) {
+      case 'acct-mode':
+        sfx('tap'); Object.assign(acct, { mode: t.dataset.mode, err: '', msg: '' }); render(); break;
+      case 'acct-forgot':
+        if (!acct.email.trim()) { acct.err = 'add your email first'; render(); break; }
+        Object.assign(acct, { err: '', msg: '' });
+        Sync.forgot(acct.email.trim())
+          .then(() => { acct.msg = 'check your email for a link to set a new password'; })
+          .catch(e => { acct.err = nice(e); })
+          .then(render);
+        break;
+      case 'acct-sync':
+        sfx('tap'); Sync.now(); break;
+      case 'acct-out':
+        if (!confirm('Sign out? Everything stays on this device.')) return;
+        sfx('poof');
+        Sync.signOut().then(render);
+        break;
       case 'start':
         sfx('tap'); state.seen = true; save(); go(state.user ? '/new' : '/hi'); break;
       case 'sound':
@@ -2332,6 +2552,10 @@
   app.addEventListener('submit', e => {
     e.preventDefault();
     const f = e.target;
+    if (f.dataset.form === 'acct') {
+      if (!acct.busy) submitAccount();
+      return;
+    }
     if (f.dataset.form === 'you') {
       if (you.trim()) { state.user = you.trim(); save(); afterName(); }
       return;
@@ -2425,6 +2649,7 @@
     }
 
     const n = e.target.name;
+    if (e.target.closest('form[data-form="acct"]')) { acct[n] = e.target.value; return; }
     if (n === 'name' && draft) {
       draft.name = e.target.value;
       const next = app.querySelector('[data-action="wiz-next"]');
@@ -2513,6 +2738,16 @@
     state.log = {};
     state.lists.forEach(l => l.sections.forEach(s => s.items.forEach(i => { if (i.done && i.doneAt) logTick(l, i); })));
     save();
+  }
+
+  Sync.init({ docs: syncDocs, apply: syncApply, changed: syncChanged, photoIds: syncPhotoIds });
+  if (/access_token=|error_description=/.test(location.hash)) {
+    const link = location.hash;
+    history.replaceState(null, '', '#/account');
+    Sync.fromLink(link)
+      .then(type => { if (type === 'recovery') acct.mode = 'reset'; else if (!type) acct.err = 'that link has expired — try again'; })
+      .catch(() => { acct.err = 'that link has expired — try again'; })
+      .then(render);
   }
 
   render();

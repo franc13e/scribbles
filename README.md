@@ -52,7 +52,7 @@ A tiny, doodly app for lists, recipes, notes and monthly recaps. It's minimal, c
 
 - **Installable:** it's a PWA, so you can add it to your home screen and it opens full-screen like a normal app, even offline.
 
-Lists are saved on your device (localStorage, with recap and recipe photos in IndexedDB), so each device keeps its own lists. Exporting your month doubles as a backup.
+Everything is saved on your device first (localStorage, with photos and drawings in IndexedDB), so the app works offline. Sign in (the cloud on the home screen) to sync it all between devices through Supabase: your things are in a private table and photo folder that only your account can read. The first sign-in on a device adds whatever is already on it to your account.
 
 ## Install on your phone
 
@@ -70,6 +70,7 @@ Plain HTML, CSS and JavaScript, with no framework and no build step.
 | `style.css` | Look, layout and animations |
 | `app.js` | Doodles, mascot, screens and saving |
 | `draw.js` | The drawing pad: pen, marker and eraser, colours, undo, and Apple Pencil pressure |
+| `sync.js` | Sign-in (email and password) and syncing with Supabase over plain fetch: what changed here, what changed elsewhere, merging, photos |
 | `recap.js` | Month recap stickers, photo storage and the image / PDF export |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Home-screen install and offline support |
 

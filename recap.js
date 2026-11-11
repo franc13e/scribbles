@@ -104,11 +104,23 @@
   }));
 
   const urls = new Map(); // photo id -> object URL
+  // fetchRemote / onPut / onDel are filled in by sync.js when signed in, so photos follow you between devices
   const photos = {
-    put: (id, blob) => tx('readwrite', s => s.put(blob, id)).then(() => { urls.set(id, URL.createObjectURL(blob)); }),
-    del: id => tx('readwrite', s => s.delete(id)).catch(() => {}),
+    put: (id, blob) => tx('readwrite', s => s.put(blob, id)).then(() => {
+      urls.set(id, URL.createObjectURL(blob));
+      if (photos.onPut) photos.onPut(id);
+    }),
+    del: id => {
+      if (photos.onDel) photos.onDel(id);
+      return tx('readwrite', s => s.delete(id)).catch(() => {});
+    },
+    get: id => tx('readonly', s => s.get(id)),
     cached: id => urls.get(id) || '',
-    url: id => urls.has(id) ? Promise.resolve(urls.get(id)) : tx('readonly', s => s.get(id)).then(b => {
+    url: id => urls.has(id) ? Promise.resolve(urls.get(id)) : tx('readonly', s => s.get(id)).then(async b => {
+      if (!b && photos.fetchRemote) {
+        b = await photos.fetchRemote(id).catch(() => null);
+        if (b) await tx('readwrite', s => s.put(b, id));
+      }
       if (!b) return '';
       if (!urls.has(id)) urls.set(id, URL.createObjectURL(b));
       return urls.get(id);
