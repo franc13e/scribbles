@@ -139,6 +139,16 @@
     }
   }
 
+  // cuts the square at (x, y) with side s (in the photo's own pixels) out of a photo, at most 1000px across
+  async function cropSquare(src, x, y, s) {
+    const img = await loadImage(src);
+    const out = Math.min(1000, Math.round(s));
+    const c = document.createElement('canvas');
+    c.width = c.height = out;
+    c.getContext('2d').drawImage(img, x, y, s, s, 0, 0, out, out);
+    return new Promise(ok => c.toBlob(ok, 'image/jpeg', .88));
+  }
+
   // ---------- export ----------
 
   const FONTS = ['Gochi Hand', 'Patrick Hand'];
@@ -382,5 +392,5 @@
     return pdfFromJpeg(new Uint8Array(await jpg.arrayBuffer()), canvas.width, canvas.height);
   }
 
-  window.Recap = { WK, CELL, STICKERS, STAMPS, SHAPES, stickerById, stickerSvg, photos, shrinkPhoto, renderPage, exportBlob };
+  window.Recap = { WK, CELL, STICKERS, STAMPS, SHAPES, stickerById, stickerSvg, photos, shrinkPhoto, cropSquare, loadImage, renderPage, exportBlob };
 })();

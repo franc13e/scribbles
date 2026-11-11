@@ -356,6 +356,7 @@
   let mzoom = 1;              // month page zoom, 1 = the whole board fits
   let bsheet = false;         // recipe page: the "which grocery list?" sheet is open
   let nsel = null;            // note page: the photo whose frame / remove tools are showing
+  let crop = null;            // recipe photo cropper: { rid, o (whole photo id), w, h, cx, cy (crop centre), z, fresh }
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -968,14 +969,12 @@
       const r = state.recipes.find(x => x.id === pickFor.recipe);
       if (!r || !files[0]) return;
       try {
-        const { blob, a } = await R.shrinkPhoto(files[0]);
-        const id = uid();
-        await R.photos.put(id, blob);
-        if (r.photo) R.photos.del(r.photo.p);
-        r.photo = { p: id, a };
-        touch(r);
-        sfx('pop');
-        render();
+        // keep the whole photo, then crop it square; the crop becomes the recipe photo on "use photo"
+        const { blob } = await R.shrinkPhoto(files[0]);
+        const o = uid();
+        await R.photos.put(o, blob);
+        const img = await R.loadImage(R.photos.cached(o));
+        openCrop(r, o, img.naturalWidth, img.naturalHeight, true);
       } catch (e) {
         toast('couldn’t add that photo');
       }
@@ -1134,7 +1133,7 @@
     const q = [r.name, r.notes, ...r.ings.map(x => x.t)].join(' ').toLowerCase();
     return `
       <a class="r-card" href="#/recipe/${r.id}" data-q="${esc(q)}">
-        <div class="r-thumb">${r.photo ? `<img data-photo="${esc(r.photo.p)}" alt="" draggable="false">` : DOODLES.recipe}</div>
+        <div class="r-thumb ${r.photo ? 'has' : ''}">${r.photo ? `<img data-photo="${esc(r.photo.p)}" alt="" draggable="false">` : DOODLES.recipe}</div>
         <h3>${esc(r.name.trim() || 'untitled recipe')}</h3>
         <small>${esc(meta || 'nothing here… yet')}</small>
         ${host(r.link) ? `<small class="r-host">${LINK}${esc(host(r.link))}</small>` : ''}
@@ -1243,7 +1242,7 @@
         </div>
         ${r.photo
           ? `<div class="r-photo"><img data-photo="${esc(r.photo.p)}" alt="" draggable="false" style="aspect-ratio:${Math.min(1.25, Math.max(.6, 1 / r.photo.a)).toFixed(3)}">
-              <div class="r-photo-btns"><button class="chip" data-action="b-photo">change</button><button class="chip" data-action="b-photo-del">remove</button></div></div>`
+              <div class="r-photo-btns"><button class="chip" data-action="b-crop">crop</button><button class="chip" data-action="b-photo">change</button><button class="chip" data-action="b-photo-del">remove</button></div></div>`
           : `<button class="r-photo r-add-photo" data-action="b-photo">${ADD_ICONS.photo}<span>add a photo</span></button>`}
         <input class="title-input" data-field="r-name" value="${esc(r.name)}" maxlength="60" placeholder="recipe name" aria-label="Recipe name">
         <div class="b-sub r-flavours">${FLAVOURS.map(f =>
@@ -1280,8 +1279,141 @@
           <button class="text-btn danger" data-action="b-del-recipe">Delete recipe</button>
         </div>
       </section>
-      ${bsheet ? shopSheet() : ''}`;
+      ${bsheet ? shopSheet() : ''}
+      ${crop ? cropView() : ''}`;
   }
+
+  // ---------- square crop for recipe photos ----------
+  // the crop is a square of side min(w, h) / z around (cx, cy), all in the whole photo's pixels
+
+  const cropView = () => `
+    <div class="sheet-wrap crop-wrap ${sheetFresh ? 'fresh' : ''}">
+      <div class="sheet-backdrop"></div>
+      <div class="sheet" role="dialog" aria-label="Crop photo">
+        <h3>crop your photo</h3>
+        <div class="crop-view"><img class="crop-img" data-photo="${esc(crop.o)}" alt="" draggable="false"><i class="crop-grid"></i></div>
+        <input class="crop-zoom" type="range" min="1" max="4" step="0.01" value="${crop.z}" data-field="crop-z" aria-label="Zoom">
+        <p class="crop-hint">drag to move · pinch or slide to zoom</p>
+        <div class="m-btns">
+          <button class="pill ghost" data-action="b-crop-cancel">cancel</button>
+          <button class="pill" data-action="b-crop-done">use photo</button>
+        </div>
+      </div>
+    </div>`;
+
+  const cropSide = () => Math.min(crop.w, crop.h) / crop.z;
+
+  function clampCrop() {
+    crop.z = Math.min(4, Math.max(1, crop.z));
+    const h = cropSide() / 2;
+    crop.cx = Math.min(crop.w - h, Math.max(h, crop.cx));
+    crop.cy = Math.min(crop.h - h, Math.max(h, crop.cy));
+  }
+
+  function paintCrop() {
+    const view = app.querySelector('.crop-view');
+    if (!view || !crop) return;
+    clampCrop();
+    const V = view.clientWidth, k = V / cropSide();
+    const img = view.querySelector('.crop-img');
+    img.style.width = crop.w * k + 'px';
+    img.style.height = crop.h * k + 'px';
+    img.style.transform = `translate(${V / 2 - crop.cx * k}px, ${V / 2 - crop.cy * k}px)`;
+    const zoom = app.querySelector('.crop-zoom');
+    if (zoom) zoom.value = crop.z;
+  }
+
+  function openCrop(r, o, w, h, fresh) {
+    const c = r.photo && r.photo.o === o && r.photo.c; // start from the last crop of this photo
+    crop = { rid: r.id, o, w, h, cx: c ? c.x * w : w / 2, cy: c ? c.y * h : h / 2, z: c ? c.z : 1, fresh };
+    sheetFresh = true;
+    render();
+  }
+
+  // the whole photo's real size, from the photo itself
+  async function recrop(r) {
+    const o = r.photo.o || r.photo.p;
+    try {
+      const img = await R.loadImage(await R.photos.url(o));
+      openCrop(r, o, img.naturalWidth, img.naturalHeight, false);
+    } catch (e) {
+      toast('couldn’t open that photo');
+    }
+  }
+
+  async function finishCrop() {
+    const c = crop;
+    const r = state.recipes.find(x => x.id === c.rid);
+    if (!r) { crop = null; render(); return; }
+    clampCrop();
+    const s = cropSide();
+    try {
+      const blob = await R.cropSquare(await R.photos.url(c.o), c.cx - s / 2, c.cy - s / 2, s);
+      const id = uid();
+      await R.photos.put(id, blob);
+      if (r.photo) {
+        if (r.photo.p !== c.o) R.photos.del(r.photo.p);
+        if (r.photo.o && r.photo.o !== c.o) R.photos.del(r.photo.o);
+      }
+      r.photo = { p: id, a: 1, o: c.o, c: { x: c.cx / c.w, y: c.cy / c.h, z: c.z } };
+      touch(r);
+      sfx('pop');
+    } catch (e) {
+      toast('couldn’t crop that photo');
+    }
+    crop = null;
+    render();
+  }
+
+  // a just-picked photo that was never used goes away again
+  function dropCrop() {
+    const r = state.recipes.find(x => x.id === crop.rid);
+    if (crop.fresh && !(r && r.photo && (r.photo.o === crop.o || r.photo.p === crop.o))) R.photos.del(crop.o);
+    crop = null;
+  }
+
+  // dragging moves the photo under the square, two fingers or the wheel zoom it
+  let cropGest = null;
+  app.addEventListener('pointerdown', ev => {
+    const view = ev.target.closest('.crop-view');
+    if (!view || !crop) return;
+    ev.preventDefault();
+    view.setPointerCapture(ev.pointerId);
+    if (!cropGest) cropGest = { pts: new Map(), V: view.clientWidth };
+    cropGest.pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    cropGest.d = null;
+  });
+  app.addEventListener('pointermove', ev => {
+    const g = cropGest;
+    if (!g || !g.pts.has(ev.pointerId)) return;
+    const prev = g.pts.get(ev.pointerId);
+    g.pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (g.pts.size > 1) {
+      const [a, b] = [...g.pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      if (g.d) crop.z *= d / g.d;
+      g.d = d;
+    } else {
+      const k = g.V / cropSide();
+      crop.cx -= (ev.clientX - prev.x) / k;
+      crop.cy -= (ev.clientY - prev.y) / k;
+    }
+    paintCrop();
+  });
+  const endCrop = ev => {
+    if (!cropGest || !cropGest.pts.has(ev.pointerId)) return;
+    cropGest.pts.delete(ev.pointerId);
+    cropGest.d = null;
+    if (!cropGest.pts.size) cropGest = null;
+  };
+  app.addEventListener('pointerup', endCrop);
+  app.addEventListener('pointercancel', endCrop);
+  app.addEventListener('wheel', ev => {
+    if (!crop || !ev.target.closest('.crop-view')) return;
+    ev.preventDefault();
+    crop.z *= Math.exp(-ev.deltaY * .002);
+    paintCrop();
+  }, { passive: false });
 
   const groceryLists = () => state.lists.filter(l => l.kind === 'grocery').sort((a, b) => b.created - a.created);
 
@@ -1400,9 +1532,19 @@
       case 'b-photo':
         if (r) pickPhotos({ recipe: r.id });
         return;
+      case 'b-crop':
+        if (r && r.photo) { sfx('tap'); recrop(r); }
+        return;
+      case 'b-crop-done':
+        if (crop) finishCrop();
+        return;
+      case 'b-crop-cancel':
+        if (crop) { dropCrop(); render(); }
+        return;
       case 'b-photo-del':
         if (!r || !r.photo) return;
         R.photos.del(r.photo.p);
+        if (r.photo.o && r.photo.o !== r.photo.p) R.photos.del(r.photo.o);
         r.photo = null;
         sfx('poof'); touch(r); render();
         return;
@@ -1426,7 +1568,7 @@
         return;
       case 'b-del-recipe':
         if ((r.name.trim() || r.ings.length || r.steps.length) && !confirm(`Delete “${r.name.trim() || 'this recipe'}”? This can’t be undone.`)) return;
-        if (r.photo) R.photos.del(r.photo.p);
+        if (r.photo) { R.photos.del(r.photo.p); if (r.photo.o) R.photos.del(r.photo.o); }
         state.recipes = state.recipes.filter(x => x !== r);
         sfx('poof'); save(); go('/book');
         return;
@@ -1512,7 +1654,7 @@
     if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); mzoom = 1; }
     const oldWrap = app.querySelector('.board-wrap');
     const keepLeft = oldWrap ? oldWrap.scrollLeft : 0;
-    if (!r.startsWith('/recipe/')) bsheet = false;
+    if (!r.startsWith('/recipe/')) { bsheet = false; if (crop) dropCrop(); }
     if (!r.startsWith('/note/')) nsel = null;
     if (!r.startsWith('/recipe/') && !r.startsWith('/note/')) tidyBook();
     let html;
@@ -1545,6 +1687,7 @@
     app.querySelectorAll('img[data-photo]:not([src])').forEach(img =>
       R.photos.url(img.dataset.photo).then(u => { if (u) img.src = u; }).catch(() => {}));
     app.querySelectorAll('textarea.autogrow').forEach(grow);
+    if (crop) paintCrop();
     const wrap = app.querySelector('.board-wrap');
     if (wrap && !changed) wrap.scrollLeft = keepLeft;
     justAdded = justToggled = null;
@@ -2159,6 +2302,7 @@
       return;
     }
     if (f === 'm-text') { mtext.t = e.target.value; return; }
+    if (f === 'crop-z') { crop.z = +e.target.value; paintCrop(); return; }
 
     // notebook fields save as you type too
     if (f === 'b-q') {
@@ -2256,6 +2400,7 @@
     const egg = document.querySelector('.lero');
     if (egg) egg.remove();
     else if (sheet) { sheet = null; render(); }
+    else if (crop) { dropCrop(); render(); }
     else if (bsheet) { bsheet = false; render(); }
     else if (msheet) { closeMonthSheet(); render(); }
     else if (msel) { msel = null; render(); }

@@ -943,7 +943,7 @@ button.cell:active { background: var(--blob); }
   z-index: 1;
 }
 .r-thumb {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1;
   border-radius: 10px;
   overflow: hidden;
   background: var(--blob);
@@ -965,6 +965,34 @@ button.cell:active { background: var(--blob); }
 .r-card small { color: var(--muted); font-size: 13px; line-height: 1.25; }
 .r-host { display: flex; align-items: center; gap: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .r-host svg { width: 12px; height: 12px; flex: none; }
+
+/* the square crop sheet for recipe photos */
+.crop-view {
+  position: relative;
+  width: 100%;
+  max-width: 46vh;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--ink);
+  touch-action: none;
+  cursor: grab;
+}
+.crop-img { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; -webkit-user-drag: none; }
+/* rule-of-thirds lines and a paper edge, so it's clear what gets kept */
+.crop-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid var(--paper);
+  border-radius: 12px;
+  background:
+    linear-gradient(to right, transparent calc(33.33% - .5px), rgba(253, 248, 242, .55) calc(33.33% - .5px) calc(33.33% + .5px), transparent calc(33.33% + .5px) calc(66.66% - .5px), rgba(253, 248, 242, .55) calc(66.66% - .5px) calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+    linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(253, 248, 242, .55) calc(33.33% - .5px) calc(33.33% + .5px), transparent calc(33.33% + .5px) calc(66.66% - .5px), rgba(253, 248, 242, .55) calc(66.66% - .5px) calc(66.66% + .5px), transparent calc(66.66% + .5px));
+}
+.crop-zoom { display: block; width: 100%; margin: 16px 0 4px; accent-color: var(--ink); }
+.crop-hint { margin: 0; text-align: center; color: var(--muted); font-size: 14px; }
 
 /* sticky notes, two columns, each as tall as its words */
 .n-grid { columns: 2; column-gap: 14px; padding-top: 6px; margin-bottom: 14px; }
