@@ -345,7 +345,7 @@
     ctx.fillStyle = '#9B948C';
     ctx.font = '24px "Patrick Hand"';
     ctx.textAlign = 'right';
-    ctx.fillText('made with scribble lists ✿', W - pad, H - 38);
+    ctx.fillText('made with scribbles ✿', W - pad, H - 38);
     return c;
   }
 

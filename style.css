@@ -803,25 +803,15 @@ button.cell:active { background: var(--blob); }
 .h-rot { left: 50%; top: -40px; width: 18px; height: 18px; margin-left: -9px; border: 1.5px solid var(--ink); background: var(--paper); cursor: grab; }
 .h-rot::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1.5px; height: 16px; margin-left: -.75px; background: var(--ink); }
 
-.m-legend { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--ink-soft); margin: 10px 0 0; }
+.m-legend { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-soft); margin: 10px 0 0; }
+.m-legend p { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.m-zoom { flex: none; display: flex; align-items: center; border: 1.5px solid var(--line); border-radius: 999px; }
+.m-zoom button { width: 30px; height: 26px; font-size: 18px; line-height: 1; color: var(--ink); }
+.m-zoom button:disabled { color: var(--line); cursor: default; }
+.m-zoom span { min-width: 30px; text-align: center; }
 .m-legend i { font-style: normal; background: var(--bg); border-radius: 6px; padding: 0 5px; }
 
 .m-dock { display: flex; gap: 10px; }
-.m-zoom {
-  position: absolute;
-  right: 24px;
-  top: -24px;
-  display: flex;
-  align-items: center;
-  background: var(--paper);
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
-  font-size: 14px;
-  color: var(--ink-soft);
-}
-.m-zoom button { width: 34px; height: 30px; font-size: 20px; line-height: 1; color: var(--ink); }
-.m-zoom button:disabled { color: var(--line); cursor: default; }
-.m-zoom span { min-width: 38px; text-align: center; }
 .m-dock > .pill { flex: 1; font-size: 17px; padding: 11px 8px; }
 .m-tools { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .m-tools .chip { padding: 6px 14px; }

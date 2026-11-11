@@ -319,7 +319,7 @@
   ];
   const kindOf = id => KINDS.find(k => k.id === id) || KINDS[3];
 
-  const KEY = 'scribble-lists:v1';
+  const KEY = 'scribble-lists:v1'; // the app's old name; kept so existing saves still load
   const uid = () => Math.random().toString(36).slice(2, 10);
 
   function load() {
@@ -830,18 +830,18 @@
           <div class="cal">${cells}</div>
           <div class="layer">${m.els.map(elHtml).join('')}</div>
         </div></div>
-        <p class="m-legend"><span>${sel ? 'drag · pinch · twist' : 'tap a day to write'}</span>
-          ${showTicks() ? '<span><i>✓ 3</i> = ticked that day</span>' : ''}</p>
-
-        <div class="spacer"></div>
-        <div class="dock m-dock">
+        <div class="m-legend">
+          <p><span>${sel ? 'drag · pinch · twist' : 'tap a day to write'}</span>
+            ${showTicks() ? '<span><i>✓ 3</i> = ticked that day</span>' : ''}</p>
           <div class="m-zoom">
             <button data-action="m-zoom" data-dir="-1" aria-label="Zoom out" ${mzoom > 1 ? '' : 'disabled'}>−</button>
-            <span>${mzoom > 1 ? mzoom.toFixed(1).replace('.0', '') + '×' : 'zoom'}</span>
+            <span>${mzoom.toFixed(1).replace('.0', '')}×</span>
             <button data-action="m-zoom" data-dir="1" aria-label="Zoom in" ${mzoom < ZMAX ? '' : 'disabled'}>+</button>
           </div>
-          ${dock}
         </div>
+
+        <div class="spacer"></div>
+        <div class="dock m-dock">${dock}</div>
       </section>
       ${msheet ? monthSheet(key, m, g) : ''}`;
   }

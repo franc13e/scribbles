@@ -1,11 +1,11 @@
-# Scribble Lists ✿
+# Scribbles ✿
 
-A tiny, doodly list app for groceries, wishlists, to-dos and anything else. It's minimal, cute and hand-drawn, a bit like a notebook page.
+A tiny, doodly app for lists, recipes, notes and monthly recaps. It's minimal, cute and hand-drawn, a bit like a notebook page.
 
 **Live:** https://scribble-lists.vercel.app
 
 <p align="center">
-  <img src="screenshots/0-desktop.png" alt="Scribble Lists home screen in a phone frame on desktop" width="760">
+  <img src="screenshots/0-desktop.png" alt="Scribbles home screen in a phone frame on desktop" width="760">
 </p>
 
 ## Screenshots

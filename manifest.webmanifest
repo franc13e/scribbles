@@ -1,7 +1,7 @@
 {
-  "name": "Scribble Lists",
-  "short_name": "Scribble",
-  "description": "A doodly little app for grocery lists, wishlists, to-dos and anything else.",
+  "name": "Scribbles",
+  "short_name": "Scribbles",
+  "description": "A doodly little app for lists, recipes, notes and monthly recaps.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
