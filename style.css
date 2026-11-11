@@ -1247,6 +1247,11 @@ button.cell:active { background: var(--blob); }
 .acct .headline { font-size: 34px; }
 .acct .sub { margin-top: 8px; }
 .acct-seg { margin: 20px 0 12px; }
+.g-btn { background: #FFFFFF; color: var(--ink); border: 1.5px solid var(--ink); margin-top: 18px; gap: 10px; }
+.g-btn svg { width: 20px; height: 20px; margin: 0; }
+.acct-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; margin: 16px 0 0; }
+.acct-or::before, .acct-or::after { content: ""; flex: 1; height: 1.5px; background: var(--line); }
+.acct-or + .acct-seg { margin-top: 12px; }
 .acct-form { display: grid; gap: 10px; text-align: left; }
 .acct-form .field { font-size: 19px; }
 .acct-form .pill { margin-top: 4px; }

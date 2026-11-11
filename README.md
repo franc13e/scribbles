@@ -70,7 +70,7 @@ Plain HTML, CSS and JavaScript, with no framework and no build step.
 | `style.css` | Look, layout and animations |
 | `app.js` | Doodles, mascot, screens and saving |
 | `draw.js` | The drawing pad: pen, marker and eraser, colours, undo, and Apple Pencil pressure |
-| `sync.js` | Sign-in (email and password) and syncing with Supabase over plain fetch: what changed here, what changed elsewhere, merging, photos |
+| `sync.js` | Sign-in (Google, or email and password) and syncing with Supabase over plain fetch: what changed here, what changed elsewhere, merging, photos |
 | `recap.js` | Month recap stickers, photo storage and the image / PDF export |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Home-screen install and offline support |
 

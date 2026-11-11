@@ -124,7 +124,15 @@
     await api('/auth/v1/user', { method: 'PUT', json: { password } });
   }
 
-  // the tokens a password-reset link puts in the address
+  // off to Google's sign-in page; it comes back to the app as #access_token=…
+  // (checks first that Google is switched on in Supabase, or you'd land on a bare error page)
+  async function google() {
+    const settings = await (await api('/auth/v1/settings', {}, false)).json();
+    if (!settings.external || !settings.external.google) throw new Error('google is off');
+    location.assign(BASE + '/auth/v1/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/'));
+  }
+
+  // the tokens a password-reset link or Google sign-in puts in the address
   async function fromLink(hashStr) {
     const p = new URLSearchParams(hashStr.replace(/^#/, ''));
     if (!p.get('access_token')) return false;
@@ -137,6 +145,7 @@
       expires_in: +p.get('expires_in') || 3600,
       user: await res.json(),
     });
+    schedule(0);
     return p.get('type') || true;
   }
 
@@ -305,6 +314,7 @@
     signIn,
     signOut,
     forgot,
+    google,
     setPassword,
     fromLink,
     now: () => schedule(0),
