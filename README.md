@@ -48,7 +48,7 @@ A tiny, doodly app for lists, recipes, notes and monthly recaps. It's minimal, c
 - **Repeating items:** tap the loop icon to repeat an item every day, week, 2 weeks or month, or only on certain days (like Mon · Thu). It unticks itself when it's due again. Only to-do and "anything" lists repeat.
 
 **Notebook** (the second little app, next to your lists)
-- **months:** a doodly calendar page for each month. Write a note on any day, add photos, stickers (doodles, scribbles, stamps, tape and arrows), your own words and your own drawings, then drag, pinch and twist them into place. Zoom in with the + / − buttons or two fingers. Days show how many things you ticked off, and tapping a day lists them. Save the page as an image or a PDF.
+- **months:** a doodly calendar page for each month. Write a note on any day, add photos, stickers (doodles, scribbles, sticky notes you can write on, stamps, tape and arrows), your own words and your own drawings, then drag, pinch and twist them into place. Zoom in with the + / − buttons or two fingers. Days show how many things you ticked off, and tapping a day lists them. Save the page as an image or a PDF.
 - **recipes:** sorted into savoury and sweet. Each one has a photo (cropped square when you add it), time, servings, a link to the original, bullet-point ingredients, numbered steps and notes. Paste a whole ingredient list or method and each line becomes its own row. Tick things off while you cook, and send the rest to a grocery list in one tap.
 - **notes:** a dotted or blank page in five paper colours, with photos (polaroid, taped, round or plain), drawings and an optional date stamp. Search appears once you have a few.
 

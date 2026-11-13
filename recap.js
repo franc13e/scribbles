@@ -14,7 +14,7 @@
   // explicit colours (not currentColor) so the same SVG works on screen and in the export
 
   const INK = '#1E1E1E', PAP = '#FFFDF9', PINK = '#F2C4C4', YEL = '#F7E3A1', BLUE = '#BCD4EC',
-    CHERRY = '#E8908A', RED = '#D9534F';
+    CHERRY = '#E8908A', RED = '#D9534F', GREEN = '#A8CFA0', LILAC = '#D6C8EC';
 
   const ln = (d, c = INK, w = 2.2, x = '') =>
     `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${x}/>`;
@@ -46,6 +46,39 @@
       '<ellipse cx="33.5" cy="31" rx="5" ry="4" fill="#1E1E1E"/>'],
     ['cup', 'doodles', 48, 48, sh('M9 18h24v9a10 10 0 0 1-10 10h-4A10 10 0 0 1 9 27z', PAP) +
       ln('M33 21h3a5 5 0 0 1 0 10h-3M17 6c-2 3 2 5 0 8M24 6c-2 3 2 5 0 8')],
+    ['cat', 'doodles', 48, 48, sh('M10 40C6 30 8 18 12 14L13 5l8 7c2-.6 4-.6 6 0l8-7 1 9c4 4 6 16 2 26-3 3-8 3-14 3s-11 0-14-3z', PAP) +
+      dot(18, 26, 1.9) + dot(30, 26, 1.9) + ln('M21 31q3 3 6 0', INK, 1.6) + ln('M5 27l8 1M5 32l8-1M43 27l-8 1M43 32l-8-1', INK, 1.3) +
+      dot(14.5, 31, 2.2, PINK) + dot(33.5, 31, 2.2, PINK)],
+    ['bunny', 'doodles', 48, 52, sh('M17 24C12 15 11 4 15.5 3.5S21 13 21 22', PAP) + sh('M27 22c0-9 1.5-19 6-18.5S35 15 31 24', PAP) +
+      sh('M9 37c0-9 7-14 15-14s15 5 15 14-7 12-15 12-15-3-15-12z', PAP) + dot(18.5, 35, 1.8) + dot(29.5, 35, 1.8) +
+      dot(24, 39, 1.6, PINK) + ln('M22 42q2 1.5 4 0', INK, 1.4)],
+    ['bow', 'doodles', 52, 40, sh('M24 18c-6-9-19-12-19-4s11 11 19 7z', PINK) + sh('M28 18c6-9 19-12 19-4s-11 11-19 7z', PINK) +
+      sh('M23 21l-7 15 5-2 3 4 2-15z', PINK, 1.8) + sh('M29 21l7 15-5-2-3 4-2-15z', PINK, 1.8) + sh('M22 15h8v8h-8z', PINK, 1.8)],
+    ['strawberry', 'doodles', 48, 48, sh('M24 43C12 39 7 25 11 18c3-5 9-5 13-2 4-3 10-3 13 2 4 7-1 21-13 25z', CHERRY) +
+      sh('M15 17c2-4 6-3 9-7 3 4 7 3 9 7-3 2-6 1-9-1-3 2-6 3-9 1z', GREEN, 1.8) +
+      [[18, 25], [27, 23], [21, 32], [31, 30], [25, 38], [16, 30]].map(([x, y]) => dot(x, y, 1.1, YEL)).join('')],
+    ['mushroom', 'doodles', 48, 48, sh('M17 26h14l-1 12c0 3-3 4-6 4s-6-1-6-4z', PAP) + sh('M5 27C5 15 14 7 24 7s19 8 19 20z', CHERRY) +
+      dot(15, 18, 2.8, PAP) + dot(27, 13, 2.3, PAP) + dot(34, 21, 2.1, PAP) + dot(22, 22, 1.6, PAP)],
+    ['leaf', 'doodles', 48, 48, sh('M8 40C8 20 20 8 41 7c-1 21-13 33-33 33z', GREEN) + ln('M8 40C17 31 26 22 35 13', INK, 1.6) +
+      ln('M18 30l-1-8M24 24l-1-8M24 24l8 0M18 30l8 1', INK, 1.3)],
+    ['butterfly', 'doodles', 52, 44, sh('M26 22C20 8 7 6 6 14s9 11 20 8z', BLUE) + sh('M26 22c6-14 19-16 20-8s-9 11-20 8z', BLUE) +
+      sh('M26 23c-8 0-15 4-13 10s10 2 13-10z', PINK) + sh('M26 23c8 0 15 4 13 10s-10 2-13-10z', PINK) +
+      ln('M26 14v19', INK, 2.8) + ln('M26 14c-2-4-4-6-7-7M26 14c2-4 4-6 7-7', INK, 1.5)],
+    ['balloon', 'doodles', 40, 56, sh('M20 3c9 0 15 7 15 16s-8 16-15 16S5 28 5 19 11 3 20 3z', PINK) + sh('M18 35h4l-1 3h-2z', PINK, 1.6) +
+      ln('M20 38c-4 4 4 6 0 10s3 4 1 7', INK, 1.5) + ln('M12 14c1-4 4-6 7-6', PAP, 2.2)],
+    ['letter', 'doodles', 52, 40, sh('M5 7h42v27H5z', PAP) + ln('M5 7l21 16L47 7') +
+      sh('M26 31c-4-3-6-5-5-7 1-2 4-2 5 0 1-2 4-2 5 0 1 2-1 4-5 7z', PINK, 1.4)],
+    ['cake', 'doodles', 48, 48, sh('M6 40V24l36-9v25z', PAP) + sh('M6 24l36-9v7c-3 1.5-6-.5-9 1.5s-6-.5-9 1.5-6-.5-9 1.5-6-.5-9 1.5z', PINK) +
+      ln('M6 32l36-6', PINK, 2) + ring(31, 11, 3.6, CHERRY, 1.8) + ln('M31 7c0-2 1-3 3-4', INK, 1.4)],
+    ['ghost', 'doodles', 44, 48, sh('M8 44V20C8 10 14 4 22 4s14 6 14 16v24l-4.7-3.5L26.7 44 22 40.5 17.3 44l-4.6-3.5z', PAP) +
+      dot(17, 20, 2) + dot(27, 20, 2) + ln('M19.5 27q2.5 2.5 5 0', INK, 1.5) + dot(13, 25, 2, PINK) + dot(31, 25, 2, PINK)],
+    ['tulip', 'doodles', 40, 52, ln('M20 26v23', '#6FA968', 2.6) + sh('M20 44c-7 0-11-4-11-9 6 0 10 3 11 9z', GREEN, 1.6) +
+      sh('M10 6l5 6 5-8 5 8 5-6v12c0 7-4 11-10 11S10 25 10 18z', PINK)],
+    ['planet', 'doodles', 56, 44, ring(28, 22, 12, LILAC) +
+      ln('M10 30c-6 5 1 8 12 5 10-3 22-10 27-15 5-5-1-7-9-4', INK, 2) + dot(23, 18, 1.6, PAP) + dot(32, 26, 1.3, PAP)],
+    ['twinkles', 'doodles', 48, 48, sh('M16 6c.6 7 3.5 10 10 10.6-6.5.6-9.4 3.6-10 10.6-.6-7-3.5-10-10-10.6 6.5-.6 9.4-3.6 10-10.6z', YEL, 1.6) +
+      sh('M34 22c.5 5 2.5 7 7 7.5-4.5.5-6.5 2.5-7 7.5-.5-5-2.5-7-7-7.5 4.5-.5 6.5-2.5 7-7.5z', PINK, 1.6) +
+      sh('M15 33c.3 3 1.5 4.3 4.5 4.6-3 .3-4.2 1.6-4.5 4.6-.3-3-1.5-4.3-4.5-4.6 3-.3 4.2-1.6 4.5-4.6z', BLUE, 1.4)],
 
     ['zigzag', 'scribbles', 64, 16, ln('M2 10l6-6 5 8 6-9 5 9 6-8 5 8 6-9 5 9 6-8 5 6')],
     ['spiral', 'scribbles', 48, 48, ln('M24 24c2-2 5 0 4 3-1 4-7 4-9 0-2-6 4-11 10-9 8 3 8 14 0 18-10 4-19-4-17-13 2-11 16-16 25-9')],
@@ -60,6 +93,14 @@
     ['star-line', 'scribbles', 48, 48, ln('M24 5l11 36L6 18h36L13 41z', INK, 2)],
     ['dots', 'scribbles', 48, 48, dot(10, 12, 2.5) + dot(22, 8, 1.8) + dot(34, 14, 2.6) + dot(14, 26, 1.7) +
       dot(28, 24, 2.8) + dot(40, 30, 1.8) + dot(18, 38, 2.4) + dot(32, 40, 1.6)],
+    ['check', 'scribbles', 48, 48, ln('M8 26l10 11L41 9', INK, 3.2)],
+    ['heart-line', 'scribbles', 48, 48, ln('M24 41C10 31 4 23 7 15c3-7 12-7 17 1 5-8 14-8 17-1 3 8-3 16-17 26-2 1-4 0-5-2', RED, 2.2)],
+    ['underline', 'scribbles', 64, 18, ln('M3 6c20-3 40-3 58 0M8 13c16-2 32-2 48 0', INK, 2)],
+    ['scallop', 'scribbles', 74, 16, ln('M2 12c3-8 9-8 12 0 3-8 9-8 12 0 3-8 9-8 12 0 3-8 9-8 12 0 3-8 9-8 12 0 3-8 9-8 12 0')],
+    ['swirl', 'scribbles', 66, 30, ln('M2 20c10 6 18 0 16-8-2-7-12-5-10 3 2 9 18 10 26 2 6-6 4-14-2-12-5 2-2 12 6 13 9 1 16-4 24-10')],
+    ['asterisk', 'scribbles', 48, 48, ln('M24 7v34M9 15.5l30 17M39 15.5l-30 17', INK, 2.6)],
+    ['frame', 'scribbles', 64, 44, ln('M6 8c18-3 36-3 52 0 2 10 2 20 0 30-18 3-36 3-52 0-2-10-2-20 0-30zM11 5c16-1 31 0 45 2', INK, 1.8)],
+    ['exclaim', 'scribbles', 44, 48, ln('M15 7l1 24M29 7l-1 24', INK, 3.6) + dot(16, 40, 3) + dot(28, 40, 3)],
 
     ['tape', 'tape', 64, 20, tape('rgba(226,215,201,.85)')],
     ['tape-pink', 'tape', 64, 20, tape('rgba(242,196,196,.8)')],
@@ -70,6 +111,18 @@
     ['arrow-both', 'tape', 72, 18, ln('M8 9h56M14 3L7 9l7 6M58 3l7 6-7 6')],
     ['arrow-down', 'tape', 40, 56, ln('M8 4c26 4 30 30 16 46M16 43l8 8 8-7')],
     ['arrow-loop', 'tape', 64, 36, ln('M4 30C14 30 18 6 28 10C36 13 26 26 22 18C18 10 40 6 58 12M50 5L59 12L50 18')],
+    ['tape-yellow', 'tape', 64, 20, tape('rgba(247,227,161,.85)')],
+    ['tape-mint', 'tape', 64, 20, tape('rgba(196,224,190,.85)')],
+    ['tape-lilac', 'tape', 64, 20, tape('rgba(214,200,236,.85)')],
+    ['tape-dots', 'tape', 64, 20, tape('rgba(242,196,196,.8)') +
+      [10, 22, 34, 46, 56].map((x, i) => dot(x, i % 2 ? 7 : 13, 2, 'rgba(255,255,255,.85)')).join('')],
+    ['tape-grid', 'tape', 64, 20, tape('rgba(253,248,242,.9)') +
+      '<path d="M3 8h58M3 13h58M14 3v14M26 3v14M38 3v14M50 3v14" stroke="rgba(188,212,236,.9)" stroke-width="1.2"/>'],
+    ['arrow-dash', 'tape', 64, 24, ln('M4 15c16-4 32-5 48-3', INK, 2.2, ' stroke-dasharray="5 6"') + ln('M47 5l10 7-9 7')],
+    ['arrow-zig', 'tape', 56, 40, ln('M4 34l10-14 10 10 10-16 14 10M39 25l9-1-3-9')],
+    ['arrow-spring', 'tape', 72, 30, ln('M4 18c3-9 9-9 8 0s-6 9 0 5 9-14 13-7-4 12 2 7 9-14 13-7-4 11 3 7c7-3 13-4 21-4M58 9l8 7-9 6')],
+    ['arrow-up', 'tape', 40, 56, ln('M30 52C10 46 6 24 22 8M13 13l9-6 5 9')],
+    ['arrow-heart', 'tape', 72, 24, ln('M17 12h46M55 5l8 7-8 7') + sh('M9 19C2 15 1 10 3 7c2-2.5 4.5-2.5 6 0 1.5-2.5 4-2.5 6 0 2 3 1 8-6 12z', PINK, 1.5)],
   ].map(([id, tab, w, h, art]) => ({ id, tab, w, h, art }));
 
   const stickerById = id => STICKERS.find(s => s.id === id);
@@ -81,10 +134,15 @@
     ['have a nice\nweekend', 'pill'], ['day off', 'tag'], ['yay!', 'bubble'], ['nothing', 'plain'],
     ['best day ever', 'plain'], ['lazy day', 'pill'], ['me time', 'tag'], ['oops', 'bubble'],
     ['good vibes', 'pill'], ['hmm…', 'bubble'], ['rest', 'tag'], ['done!', 'pill'],
+    ['cozy day', 'plain'], ['payday!', 'tag'], ['birthday!', 'bubble'], ['so proud', 'pill'],
+    ['new month', 'plain'], ['self care', 'tag'],
   ];
-  const SHAPES = ['plain', 'pill', 'bubble', 'tag'];
+  const SHAPES = ['plain', 'pill', 'bubble', 'tag', 'sticky'];
   // padding around text bits, in ems [x, y]; style.css uses the same numbers
-  const PADS = { plain: [0, 0], pill: [.7, .25], bubble: [.6, .3], tag: [.6, .2] };
+  const PADS = { plain: [0, 0], pill: [.7, .25], bubble: [.6, .3], tag: [.6, .2], sticky: [.7, .7] };
+  // sticky note paper; a note is at least STICKY_MIN ems square
+  const STICKY = { yellow: '#FBE7A1', pink: '#F8CFD3', blue: '#CFE0F2', green: '#D5E8CD', lilac: '#E2D6F0' };
+  const STICKY_MIN = 4.4;
 
   // ---------- photos ----------
   // photos are too big for localStorage, so they live in IndexedDB, shrunk to 1200px
@@ -197,7 +255,8 @@
     const lh = fs * 1.05;
     const tw = Math.max(...lines.map(l => ctx.measureText(l).width));
     const [px, py] = PADS[e.shape] || PADS.plain;
-    const w = tw + px * 2 * fs, h = lines.length * lh + py * 2 * fs;
+    let w = tw + px * 2 * fs, h = lines.length * lh + py * 2 * fs;
+    if (e.shape === 'sticky') { w = Math.max(w, STICKY_MIN * fs); h = Math.max(h, STICKY_MIN * fs * .9); }
     const x = -w / 2, y = -h / 2;
     ctx.lineWidth = fs * .08;
     ctx.strokeStyle = INK;
@@ -211,11 +270,25 @@
     } else if (e.shape === 'tag') {
       rrect(ctx, x, y, w, h, fs * .3);
       ctx.fillStyle = INK; ctx.fill();
+    } else if (e.shape === 'sticky') {
+      ctx.save();
+      ctx.shadowColor = 'rgba(30,30,30,.16)'; ctx.shadowBlur = fs * .35; ctx.shadowOffsetY = fs * .12;
+      rrect(ctx, x, y, w, h, fs * .12);
+      ctx.fillStyle = STICKY[e.c] || STICKY.yellow; ctx.fill();
+      ctx.restore();
+      // a bit of tape holding it on
+      ctx.save();
+      ctx.translate(0, y);
+      ctx.rotate(-4 * Math.PI / 180);
+      ctx.fillStyle = 'rgba(226,215,201,.85)';
+      ctx.fillRect(-w * .2, -fs * .28, w * .4, fs * .56);
+      ctx.restore();
     }
     ctx.fillStyle = e.shape === 'tag' ? '#FDF8F2' : INK;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    lines.forEach((l, i) => ctx.fillText(l, 0, y + py * fs + lh * (i + .5) + fs * .04));
+    const ty = -lines.length * lh / 2; // centred, which on a sticky note leaves room above and below
+    lines.forEach((l, i) => ctx.fillText(l, 0, ty + lh * (i + .5) + fs * .04));
   }
 
   // a photo with its frame, centred on 0,0; w = width in px
@@ -606,5 +679,5 @@
     return pdfFromJpeg(new Uint8Array(await jpg.arrayBuffer()), canvas.width, canvas.height, canvas.links || []);
   }
 
-  window.Recap = { WK, CELL, STICKERS, STAMPS, SHAPES, stickerById, stickerSvg, photos, shrinkPhoto, cropSquare, loadImage, renderPage, renderWish, exportBlob };
+  window.Recap = { WK, CELL, STICKERS, STAMPS, SHAPES, STICKY, stickerById, stickerSvg, photos, shrinkPhoto, cropSquare, loadImage, renderPage, renderWish, exportBlob };
 })();

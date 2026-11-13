@@ -900,7 +900,7 @@
   };
   const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
   const FRAMES = ['polaroid', 'taped', 'round', 'plain'];
-  const TABS = [['doodles', 'doodles'], ['scribbles', 'scribbles'], ['stamps', 'stamps'], ['tape', 'tape & arrows']];
+  const TABS = [['doodles', 'doodles'], ['scribbles', 'scribbles'], ['notes', 'sticky notes'], ['stamps', 'stamps'], ['tape', 'tape & arrows']];
   const coarse = matchMedia('(pointer: coarse)').matches;
 
   function logTick(l, i) {
@@ -979,7 +979,7 @@
       inner = s ? R.stickerSvg(s, 'aria-hidden="true"') : '';
     } else {
       cls = 'sh-' + e.shape;
-      size = `font-size:${e.s}cqw;`;
+      size = `font-size:${e.s}cqw;${e.shape === 'sticky' ? `--sc:${R.STICKY[e.c] || R.STICKY.yellow};` : ''}`;
       inner = esc(e.t);
     }
     const handles = sel ? `<button class="h h-del" data-action="m-del" aria-label="Remove">×</button>
@@ -1101,6 +1101,8 @@
     if (msheet === 'tray') {
       const items = mtab === 'stamps'
         ? R.STAMPS.map(([t, shape], i) => `<button class="tray-btn" data-action="m-add-stamp" data-i="${i}"><span class="tray-stamp sh-${shape}">${esc(t)}</span></button>`)
+        : mtab === 'notes'
+        ? Object.entries(R.STICKY).map(([c, hex]) => `<button class="tray-btn" data-action="m-add-sticky" data-c="${c}" aria-label="${c} sticky note"><span class="tray-sticky" style="--sc:${hex}"></span></button>`)
         : R.STICKERS.filter(s => s.tab === mtab).map(s => `<button class="tray-btn" data-action="m-add-stk" data-k="${s.id}" aria-label="${s.id.replace('-', ' ')}">${R.stickerSvg(s, 'aria-hidden="true"')}</button>`);
       return wrapSheet('Stickers', `
         <div class="m-tabs">${TABS.map(([id, label]) => `<button class="chip ${mtab === id ? 'on' : ''}" data-action="m-tab" data-tab="${id}">${label}</button>`).join('')}</div>
@@ -1110,8 +1112,11 @@
     if (msheet === 'text') {
       return wrapSheet('Words', `
         <h3>${mtext.id ? 'edit words' : 'add words'}</h3>
-        <textarea class="field m-words" data-field="m-text" rows="2" maxlength="60" aria-label="Words">${esc(mtext.t)}</textarea>
-        <div class="m-shapes">${R.SHAPES.map(s => `<button class="chip ${mtext.shape === s ? 'on' : ''}" data-action="m-shape" data-shape="${s}">${s}</button>`).join('')}</div>
+        <textarea class="field m-words" data-field="m-text" rows="${mtext.shape === 'sticky' ? 3 : 2}" maxlength="120" aria-label="Words"
+          placeholder="${mtext.shape === 'sticky' ? 'write on your note… (or leave it blank)' : ''}">${esc(mtext.t)}</textarea>
+        <div class="m-shapes">${R.SHAPES.map(s => `<button class="chip ${mtext.shape === s ? 'on' : ''}" data-action="m-shape" data-shape="${s}">${s === 'sticky' ? 'sticky note' : s}</button>`).join('')}</div>
+        ${mtext.shape === 'sticky' ? `<div class="m-colors">${Object.entries(R.STICKY).map(([c, hex]) =>
+          `<button class="m-color ${mtext.c === c ? 'on' : ''}" data-action="m-sticky-c" data-c="${c}" style="--sc:${hex}" aria-label="${c}"></button>`).join('')}</div>` : ''}
         <div class="m-btns">
           <button class="pill ghost" data-action="m-close">cancel</button>
           <button class="pill" data-action="m-words-done">done</button>
@@ -2634,19 +2639,30 @@
         break;
       case 'm-edit-text':
         if (!sel) return;
-        sfx('tap'); mtext = { id: sel.id, t: sel.t, shape: sel.shape }; open('text');
+        sfx('tap'); mtext = { id: sel.id, t: sel.t, shape: sel.shape, c: sel.c }; open('text');
         pendingFocus = '.m-words';
         break;
       case 'm-shape':
-        sfx('tap'); mtext.shape = t.dataset.shape; open('text', false); break;
+        sfx('tap');
+        mtext.shape = t.dataset.shape;
+        if (mtext.shape === 'sticky' && !mtext.c) mtext.c = 'yellow';
+        open('text', false);
+        break;
+      case 'm-sticky-c':
+        sfx('tap'); mtext.c = t.dataset.c; open('text', false); break;
+      case 'm-add-sticky':
+        sfx('tap'); msel = null; mtext = { t: '', shape: 'sticky', c: t.dataset.c }; open('text');
+        pendingFocus = '.m-words';
+        break;
       case 'm-words-done': {
-        const { t: words, shape } = mtext;
+        const { t: words, shape, c } = mtext;
         const text = words.trim();
+        const keep = text || shape === 'sticky'; // a blank sticky note is still a sticky note
         const e = mtext.id && m.els.find(x => x.id === mtext.id);
-        if (e && text) Object.assign(e, { t: text, shape });
+        if (e && keep) Object.assign(e, { t: text, shape, c: shape === 'sticky' ? c : undefined });
         else if (e) m.els = m.els.filter(x => x !== e);
         closeMonthSheet();
-        if (!e && text) addEl(key, { type: 'text', t: text, shape, s: 5 });
+        if (!e && keep) addEl(key, { type: 'text', t: text, shape, ...(shape === 'sticky' ? { c, s: 4.2 } : { s: 5 }) });
         else { sfx('tap'); save(); }
         break;
       }
