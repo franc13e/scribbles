@@ -593,7 +593,7 @@
                         <a class="w-go" href="${esc(linkUrl(i.link))}" target="_blank" rel="noopener noreferrer" aria-label="Open the link for ${esc(i.text)}">${esc(host(i.link))}${OUT}</a>
                       </div>`
                     : `<button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}${repeatTag(l, i)}</button>`}
-                  ${wish ? `<button class="icon-btn w-edit" data-action="w-edit" title="Photo & link" aria-label="Add a photo or link to ${esc(i.text)}">${PENCIL}</button>` : ''}
+                  ${wish ? `<button class="icon-btn w-edit" data-action="w-edit" title="Photo & link" aria-label="Add a photo or link to ${esc(i.text)}">${CLIP}</button>` : ''}
                   ${!canRepeat(l) ? '' : `<button class="icon-btn rep ${repeats(l, i) ? 'on' : ''}" data-action="repeat" title="Repeat" aria-label="Repeat ${esc(i.text)}: ${repeats(l, i) ? repeatLabel(i) : 'off'}">${LOOP}</button>`}
                   <button class="icon-btn" data-action="del-item" aria-label="Delete ${esc(i.text)}">×</button>
                 </li>`).join('')}
@@ -950,7 +950,7 @@
   };
 
   const CAL = icon24('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16 M9 3v4 M15 3v4"/>');
-  const PENCIL = icon24('<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z M14 7l3 3"/>');
+  const CLIP = icon24('<path d="M20 11.5l-7.6 7.6a5 5 0 0 1-7.1-7.1l8.1-8.1a3.3 3.3 0 0 1 4.7 4.7l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4"/>'); // attach a photo or link
   const OUT = icon24('<path d="M8 16L16 8 M9.5 8H16v6.5"/>'); // "opens elsewhere"
   const SAVE_ICON = icon24('<path d="M12 4v11 M7.5 10.5L12 15l4.5-4.5 M5 19.5h14"/>');
   const SMALL_TICK = icon24('<path d="M5 12.5l4.5 4.5L19 7"/>');
