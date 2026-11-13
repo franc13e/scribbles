@@ -2374,6 +2374,13 @@
 
   app.addEventListener('click', e => {
     if (swallowClick) { swallowClick = false; if (!e.target.closest('.item-edit')) return; }
+    // on the month page, tapping anywhere away from the selected photo / sticker / words puts it down
+    if (msel && route().startsWith('/month') && !e.target.closest('[data-action], .el, .m-tools, .m-zoom, .sheet-wrap')) {
+      msel = null;
+      if (e.target.matches('[data-field="m-hl"]')) pendingFocus = { sel: '[data-field="m-hl"]', end: true };
+      render();
+      return;
+    }
     // the date stamp is a hidden date input; open its picker wherever it's tapped
     if (e.target.dataset.field === 'n-stamp') {
       try { e.target.showPicker(); } catch (err) { /* older browsers open it themselves */ }
