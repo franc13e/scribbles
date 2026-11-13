@@ -1274,6 +1274,20 @@ button.cell:active { background: var(--blob); }
   color: var(--ink-soft);
 }
 .w-go:hover { border-color: var(--ink); color: var(--ink); }
+.w-go svg, .r-open svg { width: 14px; height: 14px; margin-left: 2px; vertical-align: -2px; }
+
+/* pressing and holding an item turns it into a text box */
+.item-edit {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1.5px dashed var(--ink);
+  background: transparent;
+  font-size: 19px;
+  padding: 2px 0;
+  outline: none;
+}
+.list-hint { margin: -10px 0 14px; color: var(--muted); font-size: 14px; text-align: center; }
 .item .icon-btn.w-edit { opacity: .7; }
 
 .w-top { display: flex; align-items: center; gap: 14px; }

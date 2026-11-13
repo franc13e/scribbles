@@ -385,6 +385,7 @@
   let nsel = null;            // note page: the photo whose frame / remove tools are showing
   let crop = null;            // square photo cropper: { rid | lid + iid (whose photo), o (whole photo id), w, h, cx, cy (crop centre), z, fresh }
   let wsheet = null;          // wishlist: the wish whose photo / link sheet is open
+  let editing = null;         // list item being renamed (press and hold it)
   let wexp = null;            // wishlist export: { fmt, got, preview, blob }
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
@@ -584,10 +585,12 @@
                 <li class="item ${wish ? 'wish' : ''} ${i.done ? 'done' : ''} ${i.id === justAdded ? 'new' : ''} ${i.id === justToggled ? 'just' : ''}" data-item="${i.id}">
                   <button class="check" data-action="toggle" aria-label="${i.done ? 'Untick' : 'Tick'} ${esc(i.text)}">${CHECK}</button>
                   ${wish && i.photo ? `<button class="w-thumb" data-action="w-edit" aria-label="Photo of ${esc(i.text)}"><img data-photo="${esc(i.photo.p)}" alt="" draggable="false"></button>` : ''}
-                  ${wish && linkUrl(i.link)
+                  ${i.id === editing
+                    ? `<input class="item-edit" data-field="item-edit" value="${esc(i.text)}" maxlength="80" autocomplete="off" aria-label="Edit ${esc(i.text)}">`
+                    : wish && linkUrl(i.link)
                     ? `<div class="w-body">
                         <button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}</button>
-                        <a class="w-go" href="${esc(linkUrl(i.link))}" target="_blank" rel="noopener noreferrer" aria-label="Open the link for ${esc(i.text)}">${esc(host(i.link))} ↗</a>
+                        <a class="w-go" href="${esc(linkUrl(i.link))}" target="_blank" rel="noopener noreferrer" aria-label="Open the link for ${esc(i.text)}">${esc(host(i.link))}${OUT}</a>
                       </div>`
                     : `<button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}${repeatTag(l, i)}</button>`}
                   ${wish ? `<button class="icon-btn w-edit" data-action="w-edit" title="Photo & link" aria-label="Add a photo or link to ${esc(i.text)}">${PENCIL}</button>` : ''}
@@ -602,6 +605,7 @@
           </div>`;
         }).join('')}
 
+        ${total ? '<p class="list-hint">press and hold something to change it</p>' : ''}
         <button class="new-group" data-action="add-sec">+ add a group</button>
         <div class="list-foot">
           <button class="text-btn" data-action="clear-done" ${done ? '' : 'disabled style="opacity:.4"'}>Clear ticked</button>
@@ -633,7 +637,7 @@
               <input class="w-name" data-field="w-name" value="${esc(i.text)}" maxlength="80" aria-label="Wish">
               <div class="r-link w-link">
                 ${LINK}<input data-field="w-link" type="url" inputmode="url" value="${esc(i.link || '')}" maxlength="1000" autocomplete="off" placeholder="paste a link to it…" aria-label="Link">
-                <a class="r-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${url ? '' : 'hidden'}>open ↗</a>
+                <a class="r-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${url ? '' : 'hidden'}>open${OUT}</a>
               </div>
             </div>
           </div>
@@ -936,6 +940,7 @@
 
   const CAL = icon24('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16 M9 3v4 M15 3v4"/>');
   const PENCIL = icon24('<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z M14 7l3 3"/>');
+  const OUT = icon24('<path d="M8 16L16 8 M9.5 8H16v6.5"/>'); // "opens elsewhere"
   const SAVE_ICON = icon24('<path d="M12 4v11 M7.5 10.5L12 15l4.5-4.5 M5 19.5h14"/>');
   const SMALL_TICK = icon24('<path d="M5 12.5l4.5 4.5L19 7"/>');
   const ADD_ICONS = {
@@ -1497,7 +1502,7 @@
         </div>
         <div class="r-link">
           ${LINK}<input data-field="r-link" type="url" inputmode="url" value="${esc(r.link)}" maxlength="500" autocomplete="off" placeholder="paste a link to the recipe…" aria-label="Link">
-          <a class="r-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${url ? '' : 'hidden'}>open ↗</a>
+          <a class="r-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${url ? '' : 'hidden'}>open${OUT}</a>
         </div>
 
         <div class="group">
@@ -1928,7 +1933,7 @@
   function render() {
     resetRepeats();
     const r = route();
-    if (!r.startsWith('/list/')) { sheet = null; wsheet = null; wexp = null; }
+    if (!r.startsWith('/list/')) { sheet = null; wsheet = null; wexp = null; editing = null; }
     if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); mzoom = 1; }
     const oldWrap = app.querySelector('.board-wrap');
     const keepLeft = oldWrap ? oldWrap.scrollLeft : 0;
@@ -2313,7 +2318,51 @@
 
   // ---------- events ----------
 
+  // ---------- press and hold an item to fix a typo; a quick tap still ticks it off ----------
+
+  let press = null;
+  let swallowClick = false; // the tap that ends a long press isn't a tick
+
+  function finishEdit(input, keep) {
+    if (!editing) return;
+    const list = currentList();
+    const it = list && findItem(list, editing);
+    const v = input.value.trim();
+    editing = null;
+    if (it && keep && v && v !== it.text) { it.text = v.slice(0, 80); save(); sfx('pop'); }
+    render();
+  }
+
+  app.addEventListener('pointerdown', ev => {
+    const t = ev.target.closest('.item-text');
+    if (!t || ev.button > 0 || editing) return;
+    if (press) clearTimeout(press.timer);
+    const id = t.closest('[data-item]').dataset.item;
+    press = { x: ev.clientX, y: ev.clientY, timer: setTimeout(() => {
+      press = null;
+      swallowClick = true;
+      setTimeout(() => { swallowClick = false; }, 700);
+      editing = id;
+      pendingFocus = { sel: '.item-edit', end: true };
+      if (navigator.vibrate) navigator.vibrate(8);
+      sfx('tap');
+      render();
+    }, 450) };
+  });
+  const endPress = ev => {
+    if (!press) return;
+    if (ev.type === 'pointermove' && Math.hypot(ev.clientX - press.x, ev.clientY - press.y) < 8) return;
+    clearTimeout(press.timer);
+    press = null;
+  };
+  ['pointermove', 'pointerup', 'pointercancel'].forEach(t => app.addEventListener(t, endPress));
+  app.addEventListener('contextmenu', e => { if (e.target.closest('.item-text')) e.preventDefault(); });
+  // lifting the finger that held it shouldn't move the cursor out of place
+  app.addEventListener('mousedown', e => { if (swallowClick && e.target.classList.contains('item-edit')) e.preventDefault(); });
+  app.addEventListener('focusout', e => { if (e.target.dataset && e.target.dataset.field === 'item-edit') finishEdit(e.target, true); });
+
   app.addEventListener('click', e => {
+    if (swallowClick) { swallowClick = false; if (!e.target.closest('.item-edit')) return; }
     // the date stamp is a hidden date input; open its picker wherever it's tapped
     if (e.target.dataset.field === 'n-stamp') {
       try { e.target.showPicker(); } catch (err) { /* older browsers open it themselves */ }
@@ -2903,6 +2952,11 @@
   // Enter in a heading input just commits the rename
   app.addEventListener('keydown', e => {
     const f = e.target.dataset.field;
+    if (f === 'item-edit' && e.key === 'Escape') {
+      e.stopPropagation(); // just stop editing, don't close anything else
+      finishEdit(e.target, false);
+      return;
+    }
     if ((f === 'r-ing' || f === 'r-step') && !e.isComposing &&
         ((e.key === 'Enter' && !e.shiftKey) || (e.key === 'Backspace' && !e.target.value))) {
       e.preventDefault();

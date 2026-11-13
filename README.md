@@ -41,6 +41,7 @@ A tiny, doodly app for lists, recipes, notes and monthly recaps. It's minimal, c
 **Lists**
 - **Lists by type:** Groceries, Wishlist, To-do or Anything. The home screen groups your lists by type, and you can filter them.
 - **Groups inside a list:** for example "Basket" and "Produce" in a grocery list. Tap a name to rename it.
+- **Fix a typo:** press and hold anything on a list to change its text. A quick tap still ticks it off.
 - **Satisfying tick-offs:** a crayon scribble crosses each item out, with small sparkles. Finishing a list gets a bigger burst and a note from the mascot.
 - **Auto stickers:** small line icons appear on items like eggs, ramen, soap, coffee and gifts, and on everyday stuff like workouts, naps, chores, pets, plants, bills… and poop 💩.
 - **Wishlists with photos and links:** give each wish a photo (cropped square) and a link to where to buy it. Paste a shop link straight into the list and it becomes a wish, named from the page's address. Save the whole wishlist as an image or a PDF, where the links can be tapped.

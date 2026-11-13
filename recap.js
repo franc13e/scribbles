@@ -499,9 +499,19 @@
       if (it.host) {
         ctx.fillStyle = '#4A4743';
         ctx.font = '25px "Patrick Hand"';
-        let h = '↗ ' + it.host;
-        while (ctx.measureText(h).width > pic && h.length > 4) h = h.slice(0, -2) + '…';
-        ctx.fillText(h, px, T + ch - 20);
+        let h = it.host;
+        while (ctx.measureText(h).width > pic - 30 && h.length > 4) h = h.slice(0, -2) + '…';
+        const by = T + ch - 20;
+        ctx.fillText(h, px, by);
+        // a little "opens elsewhere" arrow after it
+        const ax = px + ctx.measureText(h).width + 8, ay = by - 7;
+        ctx.strokeStyle = '#4A4743';
+        ctx.lineWidth = 2;
+        ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(ax, ay + 6); ctx.lineTo(ax + 12, ay - 6);
+        ctx.moveTo(ax + 3, ay - 6); ctx.lineTo(ax + 12, ay - 6); ctx.lineTo(ax + 12, ay + 3);
+        ctx.stroke();
       }
       ctx.restore();
       if (it.url) links.push({ x: x * K, y: y * K, w: cw * K, h: ch * K, url: it.url });
