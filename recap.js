@@ -375,8 +375,149 @@
     return c;
   }
 
-  // a one-page PDF around a JPEG; the JPEG goes in as-is, so no PDF library is needed
-  function pdfFromJpeg(bytes, w, h) {
+  // a little gift box, for wishes without a photo; centred on cx, cy, s = size
+  function gift(ctx, cx, cy, s) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = s * .045;
+    ctx.lineJoin = ctx.lineCap = 'round';
+    const w = s * .48, h = s * .34, top = -s * .06;
+    rrect(ctx, -w / 2, top, w, h, s * .04);
+    ctx.fillStyle = PAP;
+    ctx.fill();
+    ctx.stroke();
+    rrect(ctx, -w / 2 - s * .03, top - s * .1, w + s * .06, s * .1, s * .03);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, top);
+    ctx.lineTo(0, top + h);
+    ctx.moveTo(0, top - s * .1);
+    ctx.bezierCurveTo(-s * .18, -s * .36, -s * .2, -s * .12, 0, top - s * .1);
+    ctx.moveTo(0, top - s * .1);
+    ctx.bezierCurveTo(s * .18, -s * .36, s * .2, -s * .12, 0, top - s * .1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const WISH_TINTS = ['#F6DCD3', '#F7EBC6', '#E0E8D5', '#DCE6EF', '#FBE3E8'];
+
+  // the wishlist page: a grid of cards with their photos; returns a canvas,
+  // with .links (where each wish's card is, in canvas pixels) so the PDF can make them tappable
+  // page = { title, sub, items: [{ t, done, host, url, photo (an image URL or '') }], dots }
+  async function renderWish(page) {
+    try { await Promise.all(FONTS.map(f => document.fonts.load(`40px "${f}"`))); } catch (e) { /* fall back */ }
+
+    const W = 1200, pad = 64, K = 1.5, cols = 3, gap = 40;
+    const cw = (W - pad * 2 - gap * (cols - 1)) / cols, pic = cw - 28, ch = 14 + pic + 140;
+    const rows = Math.max(1, Math.ceil(page.items.length / cols));
+    const top = pad + 200;
+    const H = Math.round(top + rows * (ch + gap) - gap + 110);
+
+    const c = document.createElement('canvas');
+    c.width = W * K;
+    c.height = H * K;
+    const ctx = c.getContext('2d');
+    ctx.scale(K, K);
+    ctx.fillStyle = '#FDF8F2';
+    ctx.fillRect(0, 0, W, H);
+    if (page.dots) {
+      ctx.fillStyle = 'rgba(30,30,30,.08)';
+      for (let y = 14; y < H; y += 28) for (let x = 14; x < W; x += 28) { ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); }
+    }
+
+    ctx.fillStyle = INK;
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+    ctx.font = '100px "Gochi Hand"';
+    ctx.fillText(page.title, pad, pad + 86);
+    ctx.fillStyle = '#4A4743';
+    ctx.font = '32px "Patrick Hand"';
+    ctx.fillText(page.sub, pad + 4, pad + 136);
+
+    const imgs = await Promise.all(page.items.map(it => it.photo ? loadImage(it.photo).catch(() => null) : null));
+    const links = [];
+    page.items.forEach((it, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const x = pad + col * (cw + gap), y = top + row * (ch + gap);
+      ctx.save();
+      ctx.translate(x + cw / 2, y + ch / 2);
+      ctx.rotate([-.9, .7, -.4][(i + row) % 3] * Math.PI / 180);
+      const L = -cw / 2, T = -ch / 2;
+
+      // the card, taped on
+      rrect(ctx, L, T, cw, ch, 22);
+      ctx.fillStyle = PAP;
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+
+      // the photo, or a gift on a pastel square
+      const px = L + 14, py = T + 14;
+      ctx.save();
+      rrect(ctx, px, py, pic, pic, 14);
+      ctx.clip();
+      const img = imgs[i];
+      if (img) {
+        const s = Math.min(img.naturalWidth, img.naturalHeight);
+        ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, px, py, pic, pic);
+      } else {
+        ctx.fillStyle = WISH_TINTS[i % WISH_TINTS.length];
+        ctx.fillRect(px, py, pic, pic);
+        gift(ctx, px + pic / 2, py + pic / 2 + pic * .05, pic * .5);
+      }
+      if (it.done) { ctx.fillStyle = 'rgba(253,248,242,.45)'; ctx.fillRect(px, py, pic, pic); }
+      ctx.restore();
+      if (it.done) {
+        ctx.save();
+        ctx.translate(px + pic - 70, py + pic - 34);
+        ctx.rotate(-6 * Math.PI / 180);
+        drawText(ctx, { t: 'got it ✓', shape: 'tag' }, 30);
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.translate(-14, T - 2);
+      ctx.rotate(-4 * Math.PI / 180);
+      ctx.fillStyle = 'rgba(226,215,201,.85)';
+      ctx.fillRect(-46, -12, 92, 26);
+      ctx.restore();
+
+      // the name (two lines at most) and where it's from
+      ctx.fillStyle = INK;
+      ctx.textAlign = 'left';
+      ctx.font = '36px "Gochi Hand"';
+      let lines = wrap(ctx, it.t, pic);
+      if (lines.length > 2) {
+        let last = lines[1];
+        while (last && ctx.measureText(last + '…').width > pic) last = last.slice(0, -1);
+        lines = [lines[0], last.trimEnd() + '…'];
+      }
+      lines.forEach((l, k) => ctx.fillText(l, px, py + pic + 46 + k * 38));
+      if (it.host) {
+        ctx.fillStyle = '#4A4743';
+        ctx.font = '25px "Patrick Hand"';
+        let h = '↗ ' + it.host;
+        while (ctx.measureText(h).width > pic && h.length > 4) h = h.slice(0, -2) + '…';
+        ctx.fillText(h, px, T + ch - 20);
+      }
+      ctx.restore();
+      if (it.url) links.push({ x: x * K, y: y * K, w: cw * K, h: ch * K, url: it.url });
+    });
+
+    ctx.fillStyle = '#9B948C';
+    ctx.font = '24px "Patrick Hand"';
+    ctx.textAlign = 'right';
+    ctx.fillText('made with scribbles ✿', W - pad, H - 38);
+    c.links = links;
+    return c;
+  }
+
+  // a one-page PDF around a JPEG; the JPEG goes in as-is, so no PDF library is needed.
+  // links = [{ x, y, w, h, url }] in image pixels become tappable areas on the page
+  function pdfFromJpeg(bytes, w, h, links = []) {
     const enc = new TextEncoder();
     const parts = [];
     const offs = [];
@@ -389,24 +530,33 @@
     push('%PDF-1.4\n%âãÏÓ\n');
     obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
     obj(2, () => push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'));
-    obj(3, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`));
+    const k = pw / w;
+    const annots = links.map((_, i) => `${6 + i} 0 R`).join(' ');
+    obj(3, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R${
+      links.length ? ` /Annots [${annots}]` : ''} >>`));
     obj(4, () => {
       push(`<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bytes.length} >>\nstream\n`);
       push(bytes);
       push('\nendstream');
     });
     obj(5, () => push(`<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`));
+    links.forEach((l, i) => obj(6 + i, () => {
+      const rect = [l.x * k, ph - (l.y + l.h) * k, (l.x + l.w) * k, ph - l.y * k].map(v => v.toFixed(2)).join(' ');
+      const uri = l.url.replace(/[^!-~]/g, encodeURIComponent).replace(/[\\()]/g, ch => '\\' + ch);
+      push(`<< /Type /Annot /Subtype /Link /Rect [${rect}] /Border [0 0 0] /A << /S /URI /URI (${uri}) >> >>`);
+    }));
+    const n = 6 + links.length;
     const xref = len;
-    push('xref\n0 6\n0000000000 65535 f \n' + [1, 2, 3, 4, 5].map(n => String(offs[n]).padStart(10, '0') + ' 00000 n \n').join(''));
-    push(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+    push(`xref\n0 ${n}\n0000000000 65535 f \n` + Array.from({ length: n - 1 }, (_, i) => String(offs[i + 1]).padStart(10, '0') + ' 00000 n \n').join(''));
+    push(`trailer\n<< /Size ${n} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
     return new Blob(parts, { type: 'application/pdf' });
   }
 
   async function exportBlob(canvas, fmt) {
     if (fmt === 'png') return new Promise(ok => canvas.toBlob(ok, 'image/png'));
     const jpg = await new Promise(ok => canvas.toBlob(ok, 'image/jpeg', .92));
-    return pdfFromJpeg(new Uint8Array(await jpg.arrayBuffer()), canvas.width, canvas.height);
+    return pdfFromJpeg(new Uint8Array(await jpg.arrayBuffer()), canvas.width, canvas.height, canvas.links || []);
   }
 
-  window.Recap = { WK, CELL, STICKERS, STAMPS, SHAPES, stickerById, stickerSvg, photos, shrinkPhoto, cropSquare, loadImage, renderPage, exportBlob };
+  window.Recap = { WK, CELL, STICKERS, STAMPS, SHAPES, stickerById, stickerSvg, photos, shrinkPhoto, cropSquare, loadImage, renderPage, renderWish, exportBlob };
 })();

@@ -383,7 +383,9 @@
   let mzoom = 1;              // month page zoom, 1 = the whole board fits
   let bsheet = false;         // recipe page: the "which grocery list?" sheet is open
   let nsel = null;            // note page: the photo whose frame / remove tools are showing
-  let crop = null;            // recipe photo cropper: { rid, o (whole photo id), w, h, cx, cy (crop centre), z, fresh }
+  let crop = null;            // square photo cropper: { rid | lid + iid (whose photo), o (whole photo id), w, h, cx, cy (crop centre), z, fresh }
+  let wsheet = null;          // wishlist: the wish whose photo / link sheet is open
+  let wexp = null;            // wishlist export: { fmt, got, preview, blob }
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -549,11 +551,13 @@
     const k = kindOf(l.kind);
     const { total, done } = stats(l);
     const allDone = total > 0 && done === total;
+    const wish = l.kind === 'wish';
     return `
       <section class="screen">
         <div class="topbar">
           <a class="text-btn" href="#/">Back</a>
-          <span class="kind-tag">${k.label}</span>
+          ${wish ? `<button class="text-btn w-save" data-action="w-export" ${total ? '' : 'disabled'}>${SAVE_ICON}save</button>`
+            : `<span class="kind-tag">${k.label}</span>`}
         </div>
         <div class="hero">
           <div class="hero-art">${DOODLES[k.id]}</div>
@@ -577,16 +581,23 @@
             </div>
             <ul class="items">
               ${s.items.map(i => `
-                <li class="item ${i.done ? 'done' : ''} ${i.id === justAdded ? 'new' : ''} ${i.id === justToggled ? 'just' : ''}" data-item="${i.id}">
+                <li class="item ${wish ? 'wish' : ''} ${i.done ? 'done' : ''} ${i.id === justAdded ? 'new' : ''} ${i.id === justToggled ? 'just' : ''}" data-item="${i.id}">
                   <button class="check" data-action="toggle" aria-label="${i.done ? 'Untick' : 'Tick'} ${esc(i.text)}">${CHECK}</button>
-                  <button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}${repeatTag(l, i)}</button>
+                  ${wish && i.photo ? `<button class="w-thumb" data-action="w-edit" aria-label="Photo of ${esc(i.text)}"><img data-photo="${esc(i.photo.p)}" alt="" draggable="false"></button>` : ''}
+                  ${wish && linkUrl(i.link)
+                    ? `<div class="w-body">
+                        <button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}</button>
+                        <a class="w-go" href="${esc(linkUrl(i.link))}" target="_blank" rel="noopener noreferrer" aria-label="Open the link for ${esc(i.text)}">${esc(host(i.link))} ↗</a>
+                      </div>`
+                    : `<button class="item-text" data-action="toggle"><span class="txt">${esc(i.text)}${SCRIBBLE}</span>${sticker(i.text)}${repeatTag(l, i)}</button>`}
+                  ${wish ? `<button class="icon-btn w-edit" data-action="w-edit" title="Photo & link" aria-label="Add a photo or link to ${esc(i.text)}">${PENCIL}</button>` : ''}
                   ${!canRepeat(l) ? '' : `<button class="icon-btn rep ${repeats(l, i) ? 'on' : ''}" data-action="repeat" title="Repeat" aria-label="Repeat ${esc(i.text)}: ${repeats(l, i) ? repeatLabel(i) : 'off'}">${LOOP}</button>`}
                   <button class="icon-btn" data-action="del-item" aria-label="Delete ${esc(i.text)}">×</button>
                 </li>`).join('')}
             </ul>
             <form class="add-row" data-form="add-item">
               <span class="add-plus" aria-hidden="true">+</span>
-              <input name="text" maxlength="80" autocomplete="off" placeholder="${k.placeholder}" aria-label="Add item to ${esc(s.name)}">
+              <input name="text" maxlength="${wish ? 500 : 80}" autocomplete="off" placeholder="${wish ? 'add a wish, or paste a link…' : k.placeholder}" aria-label="Add item to ${esc(s.name)}">
             </form>
           </div>`;
         }).join('')}
@@ -597,7 +608,164 @@
           <button class="text-btn danger" data-action="del-list">Delete list</button>
         </div>
       </section>
-      ${sheet ? sheetView(l) : ''}`;
+      ${sheet ? sheetView(l) : ''}
+      ${wsheet ? wishSheet(l) : ''}
+      ${wexp ? wishExportSheet() : ''}
+      ${crop ? cropView() : ''}`;
+  }
+
+  // ---------- wishlists: a photo and a link on each wish, and saving the list as a picture ----------
+  // item.photo = { p, a: 1, o, c } like a recipe photo (cropped square) · item.link = the product page
+
+  function wishSheet(l) {
+    const i = findItem(l, wsheet);
+    if (!i) return '';
+    const url = linkUrl(i.link);
+    return `
+      <div class="sheet-wrap ${sheetFresh ? 'fresh' : ''}">
+        <div class="sheet-backdrop" data-action="w-close"></div>
+        <div class="sheet w-sheet" role="dialog" aria-label="Edit wish">
+          <div class="w-top">
+            <button class="w-pic ${i.photo ? 'has' : ''}" data-action="w-photo" aria-label="${i.photo ? 'Change photo' : 'Add a photo'}">
+              ${i.photo ? `<img data-photo="${esc(i.photo.p)}" alt="" draggable="false">` : `${ADD_ICONS.photo}<span>photo</span>`}
+            </button>
+            <div class="w-fields">
+              <input class="w-name" data-field="w-name" value="${esc(i.text)}" maxlength="80" aria-label="Wish">
+              <div class="r-link w-link">
+                ${LINK}<input data-field="w-link" type="url" inputmode="url" value="${esc(i.link || '')}" maxlength="1000" autocomplete="off" placeholder="paste a link to it…" aria-label="Link">
+                <a class="r-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${url ? '' : 'hidden'}>open ↗</a>
+              </div>
+            </div>
+          </div>
+          ${i.photo ? `<div class="w-pic-btns">
+            <button class="chip" data-action="w-crop">crop</button>
+            <button class="chip" data-action="w-photo">change</button>
+            <button class="chip" data-action="w-photo-del">remove</button>
+          </div>` : ''}
+          <button class="pill wide" data-action="w-close">Done</button>
+        </div>
+      </div>`;
+  }
+
+  function wishExportSheet() {
+    const share = coarse && navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] });
+    return `
+      <div class="sheet-wrap ${sheetFresh ? 'fresh' : ''}">
+        <div class="sheet-backdrop" data-action="w-close"></div>
+        <div class="sheet m-sheet" role="dialog" aria-label="Save your wishlist">
+          <h3>save your wishlist</h3>
+          <div class="m-preview">${wexp.preview
+            ? `<img src="${wexp.preview}" alt="Preview of your wishlist">`
+            : `<span class="m-busy">${mascot(true)}drawing…</span>`}</div>
+          <div class="seg">
+            <button class="${wexp.fmt === 'png' ? 'on' : ''}" data-action="w-fmt" data-fmt="png">image</button>
+            <button class="${wexp.fmt === 'pdf' ? 'on' : ''}" data-action="w-fmt" data-fmt="pdf">pdf</button>
+          </div>
+          <div class="m-row">
+            <span>include wishes you got</span>
+            <button class="switch ${wexp.got ? 'on' : ''}" role="switch" aria-checked="${wexp.got}" aria-label="Include wishes you got" data-action="w-got"></button>
+          </div>
+          ${wexp.fmt === 'pdf' ? '<p class="m-empty w-pdf-note">links in the pdf can be tapped ✿</p>' : ''}
+          <div class="m-btns">
+            <button class="pill ghost" data-action="w-close">cancel</button>
+            <button class="pill" data-action="w-save" ${wexp.blob ? '' : 'disabled'}>${wexp.fmt === 'pdf' ? 'save pdf' : share ? 'save to photos' : 'download'}</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // wish photos, both the square and the whole photo it was cut from
+  const dropPhoto = x => { if (x && x.photo) { R.photos.del(x.photo.p); if (x.photo.o && x.photo.o !== x.photo.p) R.photos.del(x.photo.o); } };
+
+  // a pasted shop link becomes a wish: the link, named from the page's address
+  function wishFromLink(text) {
+    if (/\s/.test(text) || !/^(https?:\/\/|www\.)/i.test(text)) return null;
+    const url = linkUrl(text);
+    if (!url) return null;
+    const u = new URL(url);
+    const words = u.pathname.split('/').map(seg => {
+      try { return decodeURIComponent(seg); } catch (e) { return seg; }
+    }).filter(seg => /[a-z]{3}/i.test(seg) && /[-_ ]/.test(seg) && !/^(dp|p|product|products|item|itm|gp)$/i.test(seg))
+      .sort((a, b) => b.length - a.length)[0];
+    const name = words ? words.replace(/\.[a-z]+$/i, '').replace(/[-_+]+/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 60) : '';
+    return { text: name || host(url), link: url };
+  }
+
+  async function buildWishExport(l) {
+    const run = wexp;
+    const items = l.sections.flatMap(s => s.items).filter(i => run.got || !i.done);
+    try {
+      const canvas = await R.renderWish({
+        title: l.name,
+        sub: `${state.user ? state.user + '’s wishlist' : 'a wishlist'} · ${items.length} ${items.length === 1 ? 'wish' : 'wishes'}`,
+        items: await Promise.all(items.map(async i => ({
+          t: i.text, done: i.done, url: linkUrl(i.link), host: host(i.link),
+          photo: i.photo ? await R.photos.url(i.photo.p).catch(() => '') : '',
+        }))),
+        dots: true,
+      });
+      const blob = await R.exportBlob(canvas, run.fmt);
+      if (wexp !== run) return; // closed, or the options changed meanwhile
+      run.preview = canvas.toDataURL('image/jpeg', .75);
+      run.blob = blob;
+    } catch (e) {
+      if (wexp !== run) return;
+      wexp = null;
+      toast('couldn’t draw that, sorry');
+    }
+    render();
+  }
+
+  function wishAction(t) {
+    const l = currentList();
+    if (!l) return;
+    const i = wsheet && findItem(l, wsheet);
+    switch (t.dataset.action) {
+      case 'w-edit':
+        sfx('tap');
+        wsheet = t.closest('[data-item]').dataset.item;
+        sheetFresh = true;
+        break;
+      case 'w-close':
+        wsheet = null;
+        wexp = null;
+        break;
+      case 'w-photo':
+        if (i) pickPhotos({ item: [l.id, i.id] });
+        return;
+      case 'w-crop':
+        if (i && i.photo) { sfx('tap'); recrop(i, { lid: l.id, iid: i.id }); }
+        return;
+      case 'w-photo-del':
+        if (!i) return;
+        dropPhoto(i);
+        delete i.photo;
+        sfx('poof');
+        save();
+        break;
+      case 'w-export':
+        sfx('tap');
+        wexp = { fmt: 'png', got: true };
+        sheetFresh = true;
+        render();
+        buildWishExport(l);
+        return;
+      case 'w-fmt':
+      case 'w-got':
+        if (t.dataset.fmt === wexp.fmt) return;
+        sfx('tap');
+        wexp = { ...wexp, preview: null, blob: null };
+        if (t.dataset.fmt) wexp.fmt = t.dataset.fmt; else wexp.got = !wexp.got;
+        render();
+        buildWishExport(l);
+        return;
+      case 'w-save':
+        deliver(wexp.blob, `scribbles-${l.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'wishlist'}.${wexp.fmt}`);
+        return;
+      default:
+        return;
+    }
+    render();
   }
 
   function sheetView(l) {
@@ -767,6 +935,8 @@
   };
 
   const CAL = icon24('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16 M9 3v4 M15 3v4"/>');
+  const PENCIL = icon24('<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z M14 7l3 3"/>');
+  const SAVE_ICON = icon24('<path d="M12 4v11 M7.5 10.5L12 15l4.5-4.5 M5 19.5h14"/>');
   const SMALL_TICK = icon24('<path d="M5 12.5l4.5 4.5L19 7"/>');
   const ADD_ICONS = {
     photo: icon24('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 16l5-5 4 4 3-3 6 5"/><circle cx="16" cy="9" r="1.5"/>'),
@@ -1012,11 +1182,11 @@
   picker.multiple = true;
   picker.hidden = true;
   document.body.appendChild(picker);
-  let pickFor = null; // { at } on the month page (at = where to put it), { recipe: id } or { note: id }
+  let pickFor = null; // { at } on the month page (at = where to put it), { recipe: id }, { note: id } or { item: [list id, item id] }
 
   const pickPhotos = to => {
     pickFor = to;
-    picker.multiple = !to.recipe;  // a recipe has one photo, notes and months take a few
+    picker.multiple = !to.recipe && !to.item;  // a recipe or a wish has one photo, notes and months take a few
     picker.click();
   };
 
@@ -1032,7 +1202,23 @@
         const o = uid();
         await R.photos.put(o, blob);
         const img = await R.loadImage(R.photos.cached(o));
-        openCrop(r, o, img.naturalWidth, img.naturalHeight, true);
+        openCrop(r, { rid: r.id }, o, img.naturalWidth, img.naturalHeight, true);
+      } catch (e) {
+        toast('couldn’t add that photo');
+      }
+      return;
+    }
+    if (pickFor && pickFor.item) {
+      const [lid, iid] = pickFor.item;
+      const l = state.lists.find(x => x.id === lid);
+      const i = l && findItem(l, iid);
+      if (!i || !files[0]) return;
+      try {
+        const { blob } = await R.shrinkPhoto(files[0]);
+        const o = uid();
+        await R.photos.put(o, blob);
+        const img = await R.loadImage(R.photos.cached(o));
+        openCrop(i, { lid, iid }, o, img.naturalWidth, img.naturalHeight, true);
       } catch (e) {
         toast('couldn’t add that photo');
       }
@@ -1341,7 +1527,7 @@
       ${crop ? cropView() : ''}`;
   }
 
-  // ---------- square crop for recipe photos ----------
+  // ---------- square crop for recipe and wish photos ----------
   // the crop is a square of side min(w, h) / z around (cx, cy), all in the whole photo's pixels
 
   const cropView = () => `
@@ -1381,19 +1567,26 @@
     if (zoom) zoom.value = crop.z;
   }
 
-  function openCrop(r, o, w, h, fresh) {
+  // whose photo is being cropped: a recipe ({ rid }) or a wish ({ lid, iid })
+  function cropOwner(c) {
+    if (c.rid) return state.recipes.find(x => x.id === c.rid);
+    const l = state.lists.find(x => x.id === c.lid);
+    return l && findItem(l, c.iid);
+  }
+
+  function openCrop(r, ref, o, w, h, fresh) {
     const c = r.photo && r.photo.o === o && r.photo.c; // start from the last crop of this photo
-    crop = { rid: r.id, o, w, h, cx: c ? c.x * w : w / 2, cy: c ? c.y * h : h / 2, z: c ? c.z : 1, fresh };
+    crop = { ...ref, o, w, h, cx: c ? c.x * w : w / 2, cy: c ? c.y * h : h / 2, z: c ? c.z : 1, fresh };
     sheetFresh = true;
     render();
   }
 
   // the whole photo's real size, from the photo itself
-  async function recrop(r) {
+  async function recrop(r, ref) {
     const o = r.photo.o || r.photo.p;
     try {
       const img = await R.loadImage(await R.photos.url(o));
-      openCrop(r, o, img.naturalWidth, img.naturalHeight, false);
+      openCrop(r, ref, o, img.naturalWidth, img.naturalHeight, false);
     } catch (e) {
       toast('couldn’t open that photo');
     }
@@ -1401,7 +1594,7 @@
 
   async function finishCrop() {
     const c = crop;
-    const r = state.recipes.find(x => x.id === c.rid);
+    const r = cropOwner(c);
     if (!r) { crop = null; render(); return; }
     clampCrop();
     const s = cropSide();
@@ -1414,7 +1607,7 @@
         if (r.photo.o && r.photo.o !== c.o) R.photos.del(r.photo.o);
       }
       r.photo = { p: id, a: 1, o: c.o, c: { x: c.cx / c.w, y: c.cy / c.h, z: c.z } };
-      touch(r);
+      if (c.rid) touch(r); else save();
       sfx('pop');
     } catch (e) {
       toast('couldn’t crop that photo');
@@ -1425,7 +1618,7 @@
 
   // a just-picked photo that was never used goes away again
   function dropCrop() {
-    const r = state.recipes.find(x => x.id === crop.rid);
+    const r = cropOwner(crop);
     if (crop.fresh && !(r && r.photo && (r.photo.o === crop.o || r.photo.p === crop.o))) R.photos.del(crop.o);
     crop = null;
   }
@@ -1595,7 +1788,7 @@
         if (r) pickPhotos({ recipe: r.id });
         return;
       case 'b-crop':
-        if (r && r.photo) { sfx('tap'); recrop(r); }
+        if (r && r.photo) { sfx('tap'); recrop(r, { rid: r.id }); }
         return;
       case 'b-crop-done':
         if (crop) finishCrop();
@@ -1735,11 +1928,12 @@
   function render() {
     resetRepeats();
     const r = route();
-    if (!r.startsWith('/list/')) sheet = null;
+    if (!r.startsWith('/list/')) { sheet = null; wsheet = null; wexp = null; }
     if (!r.startsWith('/month')) { msel = null; closeMonthSheet(); mzoom = 1; }
     const oldWrap = app.querySelector('.board-wrap');
     const keepLeft = oldWrap ? oldWrap.scrollLeft : 0;
-    if (!r.startsWith('/recipe/')) { bsheet = false; if (crop) dropCrop(); }
+    if (!r.startsWith('/recipe/')) bsheet = false;
+    if (crop && !(crop.rid ? r === '/recipe/' + crop.rid : r === '/list/' + crop.lid)) dropCrop();
     if (!r.startsWith('/note/')) nsel = null;
     if (!r.startsWith('/recipe/') && !r.startsWith('/note/')) tidyBook();
     let html;
@@ -2101,7 +2295,9 @@
 
   function syncPhotoIds() {
     const ids = new Set();
-    state.recipes.forEach(r => { if (r.photo) { ids.add(r.photo.p); if (r.photo.o) ids.add(r.photo.o); } });
+    const photoOf = x => { if (x.photo) { ids.add(x.photo.p); if (x.photo.o) ids.add(x.photo.o); } };
+    state.recipes.forEach(photoOf);
+    state.lists.forEach(l => l.sections.forEach(s => s.items.forEach(photoOf)));
     state.notes.forEach(n => n.photos.forEach(x => { ids.add(x.p); if (x.s) ids.add(x.s); }));
     Object.values(state.months).forEach(m => m.els.forEach(e => {
       if (e.type === 'photo' || e.type === 'draw') ids.add(e.p);
@@ -2259,7 +2455,7 @@
         break;
       }
       case 'del-item':
-        if (item) { sfx('poof'); sec.items = sec.items.filter(i => i !== item); save(); render(); }
+        if (item) { sfx('poof'); dropPhoto(item); sec.items = sec.items.filter(i => i !== item); save(); render(); }
         break;
       case 'add-sec': {
         sfx('pop');
@@ -2276,17 +2472,19 @@
       case 'clear-done':
         // repeating items stay; they untick themselves when it's time
         sfx('poof');
-        list.sections.forEach(s => { s.items = s.items.filter(i => !i.done || repeats(list, i)); });
+        list.sections.forEach(s => { s.items = s.items.filter(i => !i.done || repeats(list, i) || dropPhoto(i)); });
         save(); render();
         break;
       case 'del-list':
         if (!confirm(`Delete “${list.name}”? This can’t be undone.`)) return;
         sfx('poof');
+        list.sections.forEach(s => s.items.forEach(dropPhoto));
         state.lists = state.lists.filter(l => l !== list); save(); go('/');
         break;
       default:
         if (t.dataset.action.startsWith('m-')) monthAction(t);
         else if (t.dataset.action.startsWith('b-')) bookAction(t);
+        else if (t.dataset.action.startsWith('w-')) wishAction(t);
     }
   });
 
@@ -2587,7 +2785,8 @@
       const sec = list.sections.find(s => s.id === secId);
       const text = f.elements.text.value.trim();
       if (!text) return;
-      const item = { id: uid(), text, done: false };
+      const fromLink = list.kind === 'wish' && wishFromLink(text);
+      const item = fromLink ? { id: uid(), text: fromLink.text, link: fromLink.link, done: false } : { id: uid(), text: text.slice(0, 80), done: false };
       sec.items.push(item);
       save();
       sfx('pop');
@@ -2618,6 +2817,20 @@
     }
     if (f === 'm-text') { mtext.t = e.target.value; return; }
     if (f === 'crop-z') { crop.z = +e.target.value; paintCrop(); return; }
+    if (f === 'w-name' || f === 'w-link') {
+      const l = currentList();
+      const i = l && findItem(l, wsheet);
+      if (!i) return;
+      if (f === 'w-name') { if (e.target.value.trim()) i.text = e.target.value.trim(); }
+      else {
+        i.link = e.target.value.trim();
+        const a = app.querySelector('.w-sheet .r-open');
+        a.hidden = !linkUrl(i.link);
+        a.href = linkUrl(i.link) || '#';
+      }
+      save();
+      return;
+    }
 
     // notebook fields save as you type too
     if (f === 'b-q') {
@@ -2717,6 +2930,7 @@
     if (egg) egg.remove();
     else if (sheet) { sheet = null; render(); }
     else if (crop) { dropCrop(); render(); }
+    else if (wsheet || wexp) { wsheet = null; wexp = null; render(); }
     else if (bsheet) { bsheet = false; render(); }
     else if (msheet) { closeMonthSheet(); render(); }
     else if (msel) { msel = null; render(); }
