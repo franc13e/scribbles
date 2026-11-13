@@ -386,7 +386,7 @@
   let crop = null;            // square photo cropper: { rid | lid + iid (whose photo), o (whole photo id), w, h, cx, cy (crop centre), z, fresh }
   let wsheet = null;          // wishlist: the wish whose photo / link sheet is open
   let editing = null;         // list item being renamed (press and hold it)
-  let wexp = null;            // wishlist export: { fmt, got, preview, blob }
+  let wexp = null;            // wishlist export: { fmt, got, pics, preview, blob }
 
   const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -665,6 +665,10 @@
             <button class="${wexp.fmt === 'png' ? 'on' : ''}" data-action="w-fmt" data-fmt="png">image</button>
             <button class="${wexp.fmt === 'pdf' ? 'on' : ''}" data-action="w-fmt" data-fmt="pdf">pdf</button>
           </div>
+          ${wexp.hasPics ? `<div class="m-row">
+            <span>show photos</span>
+            <button class="switch ${wexp.pics ? 'on' : ''}" role="switch" aria-checked="${wexp.pics}" aria-label="Show photos" data-action="w-pics"></button>
+          </div>` : ''}
           <div class="m-row">
             <span>include wishes you got</span>
             <button class="switch ${wexp.got ? 'on' : ''}" role="switch" aria-checked="${wexp.got}" aria-label="Include wishes you got" data-action="w-got"></button>
@@ -704,8 +708,9 @@
         sub: `${state.user ? state.user + '’s wishlist' : 'a wishlist'} · ${items.length} ${items.length === 1 ? 'wish' : 'wishes'}`,
         items: await Promise.all(items.map(async i => ({
           t: i.text, done: i.done, url: linkUrl(i.link), host: host(i.link),
-          photo: i.photo ? await R.photos.url(i.photo.p).catch(() => '') : '',
+          photo: run.pics && i.photo ? await R.photos.url(i.photo.p).catch(() => '') : '',
         }))),
+        photos: run.pics,
         dots: true,
       });
       const blob = await R.exportBlob(canvas, run.fmt);
@@ -749,17 +754,23 @@
         break;
       case 'w-export':
         sfx('tap');
-        wexp = { fmt: 'png', got: true };
+        {
+          const hasPics = l.sections.some(s => s.items.some(i => i.photo));
+          wexp = { fmt: 'png', got: true, hasPics, pics: hasPics };
+        }
         sheetFresh = true;
         render();
         buildWishExport(l);
         return;
       case 'w-fmt':
       case 'w-got':
+      case 'w-pics':
         if (t.dataset.fmt === wexp.fmt) return;
         sfx('tap');
         wexp = { ...wexp, preview: null, blob: null };
-        if (t.dataset.fmt) wexp.fmt = t.dataset.fmt; else wexp.got = !wexp.got;
+        if (t.dataset.fmt) wexp.fmt = t.dataset.fmt;
+        else if (t.dataset.action === 'w-got') wexp.got = !wexp.got;
+        else wexp.pics = !wexp.pics;
         render();
         buildWishExport(l);
         return;

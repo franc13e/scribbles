@@ -44,7 +44,7 @@ A tiny, doodly app for lists, recipes, notes and monthly recaps. It's minimal, c
 - **Fix a typo:** press and hold anything on a list to change its text. A quick tap still ticks it off.
 - **Satisfying tick-offs:** a crayon scribble crosses each item out, with small sparkles. Finishing a list gets a bigger burst and a note from the mascot.
 - **Auto stickers:** small line icons appear on items like eggs, ramen, soap, coffee and gifts, and on everyday stuff like workouts, naps, chores, pets, plants, bills… and poop 💩.
-- **Wishlists with photos and links:** give each wish a photo (cropped square) and a link to where to buy it. Paste a shop link straight into the list and it becomes a wish, named from the page's address. Save the whole wishlist as an image or a PDF, where the links can be tapped.
+- **Wishlists with photos and links:** give each wish a photo (cropped square) and a link to where to buy it. Paste a shop link straight into the list and it becomes a wish, named from the page's address. Save the whole wishlist as an image or a PDF, where the links can be tapped: wishes with photos become taped-on cards and the rest a neat list underneath, or switch photos off for just the list.
 - **Repeating items:** tap the loop icon to repeat an item every day, week, 2 weeks or month, or only on certain days (like Mon · Thu). It unticks itself when it's due again. Only to-do and "anything" lists repeat.
 
 **Notebook** (the second little app, next to your lists)

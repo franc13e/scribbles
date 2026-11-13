@@ -375,45 +375,45 @@
     return c;
   }
 
-  // a little gift box, for wishes without a photo; centred on cx, cy, s = size
-  function gift(ctx, cx, cy, s) {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = s * .045;
-    ctx.lineJoin = ctx.lineCap = 'round';
-    const w = s * .48, h = s * .34, top = -s * .06;
-    rrect(ctx, -w / 2, top, w, h, s * .04);
-    ctx.fillStyle = PAP;
-    ctx.fill();
-    ctx.stroke();
-    rrect(ctx, -w / 2 - s * .03, top - s * .1, w + s * .06, s * .1, s * .03);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, top);
-    ctx.lineTo(0, top + h);
-    ctx.moveTo(0, top - s * .1);
-    ctx.bezierCurveTo(-s * .18, -s * .36, -s * .2, -s * .12, 0, top - s * .1);
-    ctx.moveTo(0, top - s * .1);
-    ctx.bezierCurveTo(s * .18, -s * .36, s * .2, -s * .12, 0, top - s * .1);
-    ctx.stroke();
-    ctx.restore();
+  // text cut to fit max px, with an ellipsis
+  function fit(ctx, t, max) {
+    if (ctx.measureText(t).width <= max) return t;
+    while (t.length > 1 && ctx.measureText(t + '…').width > max) t = t.slice(0, -1);
+    return t.trimEnd() + '…';
   }
 
-  const WISH_TINTS = ['#F6DCD3', '#F7EBC6', '#E0E8D5', '#DCE6EF', '#FBE3E8'];
+  // a shop's website and a little "opens elsewhere" arrow, starting at x on baseline by; returns its width
+  function hostLine(ctx, host, x, by, max) {
+    ctx.fillStyle = '#4A4743';
+    const h = fit(ctx, host, max - 22);
+    ctx.fillText(h, x, by);
+    const ax = x + ctx.measureText(h).width + 8, ay = by - 7;
+    ctx.strokeStyle = '#4A4743';
+    ctx.lineWidth = 2;
+    ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay + 6); ctx.lineTo(ax + 12, ay - 6);
+    ctx.moveTo(ax + 3, ay - 6); ctx.lineTo(ax + 12, ay - 6); ctx.lineTo(ax + 12, ay + 3);
+    ctx.stroke();
+    return ctx.measureText(h).width + 22;
+  }
 
-  // the wishlist page: a grid of cards with their photos; returns a canvas,
-  // with .links (where each wish's card is, in canvas pixels) so the PDF can make them tappable
-  // page = { title, sub, items: [{ t, done, host, url, photo (an image URL or '') }], dots }
+  // the wishlist page: wishes with a photo as taped-on cards, the rest as a notebook list underneath
+  // (or everything as a list when photos are off); returns a canvas, with .links (where each wish
+  // is, in canvas pixels) so the PDF can make them tappable
+  // page = { title, sub, items: [{ t, done, host, url, photo (an image URL or '') }], photos, dots }
   async function renderWish(page) {
     try { await Promise.all(FONTS.map(f => document.fonts.load(`40px "${f}"`))); } catch (e) { /* fall back */ }
 
     const W = 1200, pad = 64, K = 1.5, cols = 3, gap = 40;
-    const cw = (W - pad * 2 - gap * (cols - 1)) / cols, pic = cw - 28, ch = 14 + pic + 140;
-    const rows = Math.max(1, Math.ceil(page.items.length / cols));
+    const cw = (W - pad * 2 - gap * (cols - 1)) / cols, pic = cw - 28, ch = 14 + pic + 140, rowH = 80;
+    const cards = page.photos ? page.items.filter(it => it.photo) : [];
+    const rest = page.items.filter(it => !cards.includes(it));
     const top = pad + 200;
-    const H = Math.round(top + rows * (ch + gap) - gap + 110);
+    const gridH = Math.ceil(cards.length / cols) * (ch + gap);
+    const headH = cards.length && rest.length ? 76 : 0;
+    const listTop = top + gridH + headH;
+    const H = Math.round(listTop + rest.length * rowH + (rest.length ? 30 : 0) + 90);
 
     const c = document.createElement('canvas');
     c.width = W * K;
@@ -436,9 +436,11 @@
     ctx.font = '32px "Patrick Hand"';
     ctx.fillText(page.sub, pad + 4, pad + 136);
 
-    const imgs = await Promise.all(page.items.map(it => it.photo ? loadImage(it.photo).catch(() => null) : null));
     const links = [];
-    page.items.forEach((it, i) => {
+
+    // the cards
+    const imgs = await Promise.all(cards.map(it => loadImage(it.photo).catch(() => null)));
+    cards.forEach((it, i) => {
       const col = i % cols, row = Math.floor(i / cols);
       const x = pad + col * (cw + gap), y = top + row * (ch + gap);
       ctx.save();
@@ -446,7 +448,6 @@
       ctx.rotate([-.9, .7, -.4][(i + row) % 3] * Math.PI / 180);
       const L = -cw / 2, T = -ch / 2;
 
-      // the card, taped on
       rrect(ctx, L, T, cw, ch, 22);
       ctx.fillStyle = PAP;
       ctx.fill();
@@ -454,7 +455,6 @@
       ctx.strokeStyle = INK;
       ctx.stroke();
 
-      // the photo, or a gift on a pastel square
       const px = L + 14, py = T + 14;
       ctx.save();
       rrect(ctx, px, py, pic, pic, 14);
@@ -464,9 +464,8 @@
         const s = Math.min(img.naturalWidth, img.naturalHeight);
         ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, px, py, pic, pic);
       } else {
-        ctx.fillStyle = WISH_TINTS[i % WISH_TINTS.length];
+        ctx.fillStyle = '#EBE3DA';
         ctx.fillRect(px, py, pic, pic);
-        gift(ctx, px + pic / 2, py + pic / 2 + pic * .05, pic * .5);
       }
       if (it.done) { ctx.fillStyle = 'rgba(253,248,242,.45)'; ctx.fillRect(px, py, pic, pic); }
       ctx.restore();
@@ -490,31 +489,70 @@
       ctx.textAlign = 'left';
       ctx.font = '36px "Gochi Hand"';
       let lines = wrap(ctx, it.t, pic);
-      if (lines.length > 2) {
-        let last = lines[1];
-        while (last && ctx.measureText(last + '…').width > pic) last = last.slice(0, -1);
-        lines = [lines[0], last.trimEnd() + '…'];
-      }
+      if (lines.length > 2) lines = [lines[0], fit(ctx, lines[1] + '…', pic)];
       lines.forEach((l, k) => ctx.fillText(l, px, py + pic + 46 + k * 38));
       if (it.host) {
-        ctx.fillStyle = '#4A4743';
         ctx.font = '25px "Patrick Hand"';
-        let h = it.host;
-        while (ctx.measureText(h).width > pic - 30 && h.length > 4) h = h.slice(0, -2) + '…';
-        const by = T + ch - 20;
-        ctx.fillText(h, px, by);
-        // a little "opens elsewhere" arrow after it
-        const ax = px + ctx.measureText(h).width + 8, ay = by - 7;
-        ctx.strokeStyle = '#4A4743';
-        ctx.lineWidth = 2;
-        ctx.lineCap = ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(ax, ay + 6); ctx.lineTo(ax + 12, ay - 6);
-        ctx.moveTo(ax + 3, ay - 6); ctx.lineTo(ax + 12, ay - 6); ctx.lineTo(ax + 12, ay + 3);
-        ctx.stroke();
+        hostLine(ctx, it.host, px, T + ch - 20, pic);
       }
       ctx.restore();
       if (it.url) links.push({ x: x * K, y: y * K, w: cw * K, h: ch * K, url: it.url });
+    });
+
+    // the list: a tick circle, the wish, and its shop on the right
+    if (headH) {
+      ctx.fillStyle = INK;
+      ctx.font = '42px "Gochi Hand"';
+      ctx.fillText('also wishing for…', pad, top + gridH + 36);
+    }
+    rest.forEach((it, i) => {
+      const y = listTop + i * rowH, mid = y + rowH / 2, cx = pad + 20;
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2.6;
+      ctx.lineCap = ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.arc(cx, mid, 17, 0, Math.PI * 2);
+      ctx.stroke();
+      if (it.done) {
+        ctx.lineWidth = 3.6;
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, mid + 1); ctx.lineTo(cx - 3, mid + 8); ctx.lineTo(cx + 12, mid - 10);
+        ctx.stroke();
+      }
+
+      let hostW = 0;
+      if (it.host) {
+        ctx.font = '27px "Patrick Hand"';
+        const w = Math.min(320, ctx.measureText(it.host).width + 22);
+        hostW = hostLine(ctx, it.host, W - pad - w, mid + 9, 320) + 24;
+      }
+
+      const nx = pad + 56;
+      ctx.font = '38px "Patrick Hand"';
+      ctx.fillStyle = it.done ? '#9B948C' : INK;
+      const name = fit(ctx, it.t, W - pad - nx - hostW);
+      ctx.fillText(name, nx, mid + 12);
+      if (it.done) { // crossed out with a crayon scribble, like in the app
+        const x1 = nx + ctx.measureText(name).width + 6;
+        ctx.strokeStyle = '#4A4743';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(nx - 6, mid + 2);
+        for (let x = nx + 6, k = 0; x < x1; x += 14, k++) ctx.lineTo(x, mid + (k % 2 ? 5 : -3));
+        ctx.lineTo(x1, mid + 1);
+        ctx.stroke();
+      }
+
+      ctx.save();
+      ctx.setLineDash([8, 7]);
+      ctx.strokeStyle = '#DCD3C8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(pad, y + rowH);
+      ctx.lineTo(W - pad, y + rowH);
+      ctx.stroke();
+      ctx.restore();
+      if (it.url) links.push({ x: pad * K, y: y * K, w: (W - pad * 2) * K, h: rowH * K, url: it.url });
     });
 
     ctx.fillStyle = '#9B948C';
