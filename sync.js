@@ -13,8 +13,13 @@
   const write = (k, v) => { try { v ? localStorage.setItem(k, JSON.stringify(v)) : localStorage.removeItem(k); } catch (e) { /* full */ } };
 
   // base: doc key → hash of the version last synced · dirty: doc key → when it changed here
+  // prev: the last synced months and tick days themselves, so a merge can tell removed from new
+  // ver: doc key → the server's synced_at for the version this device has seen, so a push only
+  //   replaces that exact version (if another device got there first, sync merges and tries again)
   // up: photo ids already in storage · cursor: newest server change seen · at: last good sync
-  const fresh = uid => ({ uid, cursor: null, base: {}, dirty: {}, up: {}, at: 0 });
+  const fresh = uid => ({ uid, cursor: null, base: {}, prev: {}, ver: {}, dirty: {}, up: {}, at: 0 });
+  const conflicts = {}; // doc key → pushes in a row that lost to another device
+  const MERGED = ['month', 'log']; // the kinds that combine instead of newest-wins
 
   let app = null;     // { docs(), apply(key, data | null), changed(), photoIds() }
   let session = read(AUTH);
@@ -161,24 +166,48 @@
 
   // ---------- syncing ----------
 
+  // the version both sides started from, and what's being synced now
+  function setBase(k, d) {
+    if (d === undefined) { delete meta.base[k]; delete meta.prev[k]; return; }
+    meta.base[k] = hashOf(d);
+    if (MERGED.includes(k.slice(0, k.indexOf(':')))) meta.prev[k] = JSON.parse(JSON.stringify(d));
+  }
+
+  // combines two versions of a set of things (photos on a month, ticks on a day) by id: anything new
+  // on either side stays, anything removed on either side (it was in base) goes, and where both have
+  // it the newer side's copy wins. Without a base (a first sign-in) it's just everything from both.
+  function mergeById(base, older, newer, id) {
+    const was = new Set((base || []).map(id));
+    const inOlder = new Set(older.map(id)), inNewer = new Set(newer.map(id));
+    const out = new Map();
+    for (const x of [...older, ...newer]) {
+      const k = id(x);
+      if (was.has(k) && !(inOlder.has(k) && inNewer.has(k))) continue; // removed on one side
+      out.set(k, x);
+    }
+    return [...out.values()];
+  }
+
   // when both sides changed the same thing: months, the tick log and settings combine, the rest goes to the newest
-  function merge(kind, mine, theirs, theirsNewer) {
+  function merge(kind, mine, theirs, theirsNewer, base) {
     const [older, newer] = theirsNewer ? [mine, theirs] : [theirs, mine];
     if (kind === 'month') {
-      const els = new Map(older.els.map(e => [e.id, e]));
-      newer.els.forEach(e => els.set(e.id, e));
-      return { notes: { ...older.notes, ...newer.notes }, hl: newer.hl || older.hl, els: [...els.values()] };
+      const b = base || { notes: {}, hl: '', els: [] };
+      const notes = {};
+      new Set([...Object.keys(older.notes), ...Object.keys(newer.notes)]).forEach(d => {
+        if (d in b.notes && !(d in older.notes && d in newer.notes)) return; // cleared on one side
+        notes[d] = d in newer.notes ? newer.notes[d] : older.notes[d];
+      });
+      // the highlights: whichever side changed them, or the newer if both did
+      const hl = mine.hl === b.hl ? theirs.hl : theirs.hl === b.hl ? mine.hl : newer.hl;
+      return { notes, hl, els: mergeById(base && b.els, older.els, newer.els, e => e.id) };
     }
     if (kind === 'prefs') { // a new device's blank name doesn't wipe out the one you set
       const out = { ...older };
       Object.entries(newer).forEach(([k, v]) => { if (v !== '' && v != null) out[k] = v; });
       return out;
     }
-    if (kind === 'log') {
-      const out = new Map(older.map(x => [x.i, x]));
-      newer.forEach(x => out.set(x.i, x));
-      return [...out.values()];
-    }
+    if (kind === 'log') return mergeById(base, older, newer, x => x.i);
     return newer;
   }
 
@@ -194,7 +223,6 @@
       for (const [k, d] of docs) if (hashOf(d) !== meta.base[k] && !meta.dirty[k]) meta.dirty[k] = now;
       for (const k in meta.base) if (!docs.has(k) && !meta.dirty[k]) meta.dirty[k] = now;
       for (const k in meta.dirty) if (hashOf(docs.get(k)) === meta.base[k]) delete meta.dirty[k];
-
       // 2. what other devices changed (a few seconds of overlap, in case changes landed out of order)
       let q = '/rest/v1/items?select=kind,id,data,updated,deleted,synced_at&order=synced_at.asc&limit=5000';
       if (meta.cursor) q += '&synced_at=gt.' + encodeURIComponent(new Date(time(meta.cursor) - 5000).toISOString());
@@ -205,7 +233,9 @@
         const theirs = row.deleted ? undefined : row.data;
         const th = hashOf(theirs);
         if (!meta.cursor || time(row.synced_at) > time(meta.cursor)) meta.cursor = row.synced_at;
-        if (th === meta.base[k] && !meta.dirty[k]) continue; // nothing new, usually our own push coming back
+        meta.ver[k] = row.synced_at;
+        // unchanged since this device last synced (often its own push coming back): what's here stands
+        if (th === meta.base[k]) continue;
         const mine = docs.get(k);
         if (!meta.dirty[k]) {
           app.apply(k, theirs === undefined ? null : theirs); // untouched here: take theirs
@@ -213,10 +243,12 @@
         } else if (theirs !== undefined && mine === undefined) {
           if (row.updated > meta.dirty[k]) { app.apply(k, theirs); changed = true; } // they edited after we deleted
         } else if (theirs !== undefined) {
-          app.apply(k, merge(row.kind, mine, theirs, row.updated > meta.dirty[k]));
+          const merged = merge(row.kind, mine, theirs, row.updated > meta.dirty[k], meta.prev[k]);
+          // a month or day that ends up with nothing left is removed, not kept empty
+          app.apply(k, row.kind === 'log' && !merged.length ? null : merged);
           changed = true;
         } // deleted there but changed here: keep ours, it gets pushed back below
-        if (th === undefined) delete meta.base[k]; else meta.base[k] = th;
+        setBase(k, theirs);
       }
       if (changed) { docs = app.docs(); app.changed(); }
 
@@ -228,17 +260,52 @@
         const i = k.indexOf(':');
         out.push({ k, h, row: { user_id: uid, kind: k.slice(0, i), id: k.slice(i + 1), data: d === undefined ? null : d, updated: meta.dirty[k] || now, deleted: d === undefined } });
       }
-      for (let i = 0; i < out.length; i += 100) {
-        const part = out.slice(i, i + 100);
-        await api('/rest/v1/items?on_conflict=user_id,kind,id', {
+      const pushed = (x, ver) => {
+        setBase(x.k, x.row.deleted ? undefined : x.row.data);
+        meta.ver[x.k] = ver;
+        delete meta.dirty[x.k];
+        delete conflicts[x.k];
+      };
+      const lost = x => { // another device changed it first: the next sync merges theirs in and pushes again
+        conflicts[x.k] = (conflicts[x.k] || 0) + 1;
+        again = true;
+      };
+      // things the account has: replace only the version this device saw
+      // (after a few lost races in a row, just write it, rather than going round forever)
+      for (const x of out.filter(x => meta.ver[x.k] && (conflicts[x.k] || 0) < 4)) {
+        const q = `/rest/v1/items?kind=eq.${encodeURIComponent(x.row.kind)}&id=eq.${encodeURIComponent(x.row.id)}` +
+          `&synced_at=eq.${encodeURIComponent(meta.ver[x.k])}&select=synced_at`;
+        const got = await (await api(q, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          json: { data: x.row.data, updated: x.row.updated, deleted: x.row.deleted },
+        })).json();
+        if (got.length) pushed(x, got[0].synced_at); else lost(x);
+        write(META, meta);
+      }
+      // new things: add them, unless another device added the same thing first
+      const added = out.filter(x => !meta.ver[x.k]);
+      for (let i = 0; i < added.length; i += 100) {
+        const part = added.slice(i, i + 100);
+        const got = await (await api('/rest/v1/items?on_conflict=user_id,kind,id&select=kind,id,synced_at', {
           method: 'POST',
-          headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
           json: part.map(x => x.row),
-        });
-        part.forEach(x => {
-          if (x.h === undefined) delete meta.base[x.k]; else meta.base[x.k] = x.h;
-          delete meta.dirty[x.k];
-        });
+        })).json();
+        const made = new Map(got.map(r => [r.kind + ':' + r.id, r.synced_at]));
+        part.forEach(x => { if (made.has(x.k)) pushed(x, made.get(x.k)); else lost(x); });
+        write(META, meta);
+      }
+      // the last resort for something that keeps losing: write it as it is
+      const stuck = out.filter(x => meta.ver[x.k] && (conflicts[x.k] || 0) >= 4);
+      if (stuck.length) {
+        const got = await (await api('/rest/v1/items?on_conflict=user_id,kind,id&select=kind,id,synced_at', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+          json: stuck.map(x => x.row),
+        })).json();
+        const made = new Map(got.map(r => [r.kind + ':' + r.id, r.synced_at]));
+        stuck.forEach(x => pushed(x, made.get(x.k) || meta.ver[x.k]));
         write(META, meta);
       }
 
@@ -301,6 +368,9 @@
   function init(a) {
     app = a;
     if (session && !meta) meta = fresh(session.user.id);
+    if (meta && !meta.prev) meta.prev = {}; // saved before months kept their last synced copy
+    // saved before pushes were checked against the server's version: read everything once to learn them
+    if (meta && !meta.ver) { meta.ver = {}; meta.cursor = null; }
     schedule(0);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(0); });
     window.addEventListener('online', () => schedule(0));
